@@ -13,8 +13,6 @@ Premise: Simulate world. Fly drone. Benchmark LLM.
 
 ![preview](./images/preview.png)
 
-<br>
-
 ### OpenRouter
 
 > Top weekly models for input modality = image [here](https://openrouter.ai/models?fmt=cards&input_modalities=image&order=top-weekly)
