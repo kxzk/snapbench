@@ -11,6 +11,8 @@
 Premise: Simulate world. Fly drone. Benchmark LLM.
 ```
 
+![preview](./images/preview.png)
+
 <br>
 
 ### OpenRouter

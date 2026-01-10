@@ -8,10 +8,10 @@ const deg_to_rad = std.math.pi / 180.0;
 const min_altitude: f32 = 1.0;
 
 pub fn main() void {
-    rl.InitWindow(1280, 720, "Drone Sim");
+    rl.InitWindow(1280, 720, "SnapBench");
     defer rl.CloseWindow();
 
-    rl.DisableCursor();
+    // rl.DisableCursor();
 
     var camera = rl.Camera3D{
         .position = .{ .x = 0, .y = 50, .z = -100 },
@@ -68,14 +68,15 @@ pub fn main() void {
         rl.BeginDrawing();
         defer rl.EndDrawing();
 
-        rl.ClearBackground(.{ .r = 122, .g = 127, .b = 133, .a = 255 });
+        rl.ClearBackground(rl.BLACK);
+        drawEnvironmentGradient();
 
         {
             rl.BeginMode3D(camera);
             defer rl.EndMode3D();
 
-            drawGrid(100, 5.0, .{ .r = 105, .g = 110, .b = 116, .a = 255 });
-            rl.DrawModel(model, .{ .x = 0, .y = 0, .z = 0 }, 1.0, rl.WHITE);
+            drawGrid(100, 5.0, .{ .r = 0xB0, .g = 0x8B, .b = 0x6B, .a = 100 });
+            rl.DrawModel(model, .{ .x = 0, .y = 0, .z = 0 }, 1.0, .{ .r = 255, .g = 255, .b = 255, .a = 255 });
         }
 
         drawHUD(pos, yaw);
@@ -83,16 +84,17 @@ pub fn main() void {
 }
 
 fn drawHUD(pos: rl.Vector3, yaw: f32) void {
-    const hud_bg = rl.Color{ .r = 0, .g = 0, .b = 0, .a = 150 };
+    const hud_bg = rl.Color{ .r = 255, .g = 255, .b = 255, .a = 120 };
+    const text_color = rl.Color{ .r = 40, .g = 40, .b = 40, .a = 255 };
 
     rl.DrawRectangle(10, 10, 180, 90, hud_bg);
-    rl.DrawText("DRONE", 20, 15, 14, rl.RAYWHITE);
-    rl.DrawText(rl.TextFormat("X: %.1f", pos.x), 20, 35, 16, rl.GREEN);
-    rl.DrawText(rl.TextFormat("Y: %.1f", pos.y), 20, 55, 16, rl.GREEN);
-    rl.DrawText(rl.TextFormat("Z: %.1f", pos.z), 20, 75, 16, rl.GREEN);
+    rl.DrawText("DRONE", 20, 15, 14, text_color);
+    rl.DrawText(rl.TextFormat("X: %.1f", pos.x), 20, 35, 16, text_color);
+    rl.DrawText(rl.TextFormat("Y: %.1f", pos.y), 20, 55, 16, text_color);
+    rl.DrawText(rl.TextFormat("Z: %.1f", pos.z), 20, 75, 16, text_color);
 
     rl.DrawRectangle(10, 680, 260, 30, hud_bg);
-    rl.DrawText("WASD:Move Q/E:Yaw Space/Shift:Up/Down", 15, 687, 10, rl.RAYWHITE);
+    rl.DrawText("WASD:Move Q/E:Yaw Space/Shift:Up/Down", 15, 687, 10, text_color);
 
     const cx: i32 = 1280 - 60;
     const cy: i32 = 60;
@@ -104,6 +106,24 @@ fn drawHUD(pos: rl.Vector3, yaw: f32) void {
     rl.DrawCircleLines(cx, cy, 40, rl.RAYWHITE);
     rl.DrawLine(cx, cy, ax, ay, rl.ORANGE);
     rl.DrawCircle(ax, ay, 4, rl.ORANGE);
+}
+
+fn drawEnvironmentGradient() void {
+    const w = rl.GetScreenWidth();
+    const h = rl.GetScreenHeight();
+    const half_h = @divTrunc(h, 2);
+    const quarter_h = @divTrunc(h, 4);
+
+    const sky_top = rl.Color{ .r = 0x87, .g = 0xCE, .b = 0xEB, .a = 255 };
+    const sky_mid = rl.Color{ .r = 0xE8, .g = 0xD4, .b = 0xA8, .a = 255 };
+    const horizon = rl.Color{ .r = 0xD4, .g = 0xA5, .b = 0x74, .a = 255 };
+    const ground_mid = rl.Color{ .r = 0xC4, .g = 0x95, .b = 0x6A, .a = 255 };
+    const ground_bottom = rl.Color{ .r = 0xA6, .g = 0x7B, .b = 0x5B, .a = 255 };
+
+    rl.DrawRectangleGradientV(0, 0, w, quarter_h, sky_top, sky_mid);
+    rl.DrawRectangleGradientV(0, quarter_h, w, quarter_h, sky_mid, horizon);
+    rl.DrawRectangleGradientV(0, half_h, w, quarter_h, horizon, ground_mid);
+    rl.DrawRectangleGradientV(0, half_h + quarter_h, w, quarter_h, ground_mid, ground_bottom);
 }
 
 fn drawGrid(slices: i32, spacing: f32, color: rl.Color) void {
