@@ -30,6 +30,7 @@ pub fn main() void {
 
     const terrain = world_mod.World.generate(@intCast(@as(u64, @bitCast(std.time.timestamp()))));
     const render_batch = terrain_renderer.RenderBatch.getStatic();
+    terrain_renderer.collectBatches(&terrain, render_batch);
 
     var pos = rl.Vector3{ .x = 0, .y = 20, .z = 0 };
     var yaw: f32 = 0;
@@ -94,7 +95,7 @@ pub fn main() void {
             rl.BeginMode3D(camera);
             defer rl.EndMode3D();
 
-            terrain_renderer.render(&terrain, &model_cache, render_batch);
+            terrain_renderer.render(&model_cache, render_batch);
 
             rl.DrawModel(model, .{ .x = 0, .y = 0, .z = 0 }, 1.0, .{ .r = 255, .g = 255, .b = 255, .a = 255 });
         }

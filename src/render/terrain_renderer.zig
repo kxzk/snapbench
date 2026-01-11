@@ -51,10 +51,12 @@ pub const RenderBatch = struct {
 };
 
 fn makeTransform(x: f32, y: f32, z: f32, scale: f32) rl.Matrix {
-    return rl.MatrixMultiply(
-        rl.MatrixScale(scale, scale, scale),
-        rl.MatrixTranslate(x, y, z),
-    );
+    return .{
+        .m0 = scale, .m1 = 0, .m2 = 0, .m3 = 0,
+        .m4 = 0, .m5 = scale, .m6 = 0, .m7 = 0,
+        .m8 = 0, .m9 = 0, .m10 = scale, .m11 = 0,
+        .m12 = x, .m13 = y, .m14 = z, .m15 = 1,
+    };
 }
 
 pub fn collectBatches(w: *const world.World, batch: *RenderBatch) void {
@@ -124,7 +126,6 @@ fn drawModelInstanced(model: rl.Model, transforms: *const [MAX_INSTANCES]rl.Matr
     }
 }
 
-pub fn render(w: *const world.World, cache: *const loader.ModelCache, batch: *RenderBatch) void {
-    collectBatches(w, batch);
+pub fn render(cache: *const loader.ModelCache, batch: *const RenderBatch) void {
     renderBatches(batch, cache);
 }
