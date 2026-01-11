@@ -4,6 +4,7 @@ const catalog = @import("../assets/catalog.zig");
 
 pub const WORLD_SIZE: usize = 64;
 pub const BLOCK_SCALE: f32 = 2.0;
+pub const WORLD_HALF: f32 = @as(f32, @floatFromInt(WORLD_SIZE)) * BLOCK_SCALE * 0.5;
 
 const MAX_TERRAIN_HEIGHT: u8 = 3;
 const FLOOR_HEIGHT: u8 = 1;
@@ -78,11 +79,10 @@ pub const World = struct {
     }
 
     pub fn worldPos(x: usize, z: usize, height: u8) struct { x: f32, y: f32, z: f32 } {
-        const half = toFloat(WORLD_SIZE) * BLOCK_SCALE * 0.5;
         return .{
-            .x = toFloat(x) * BLOCK_SCALE - half,
+            .x = toFloat(x) * BLOCK_SCALE - WORLD_HALF,
             .y = @as(f32, @floatFromInt(height)) * BLOCK_SCALE,
-            .z = toFloat(z) * BLOCK_SCALE - half,
+            .z = toFloat(z) * BLOCK_SCALE - WORLD_HALF,
         };
     }
 };

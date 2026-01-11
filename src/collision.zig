@@ -6,9 +6,8 @@ pub const CREATURE_RADIUS: f32 = 1.0;
 pub const CREATURE_HEIGHT: f32 = 2.0;
 
 pub fn worldToGrid(wx: f32, wz: f32) ?struct { x: usize, z: usize } {
-    const half = @as(f32, @floatFromInt(world.WORLD_SIZE)) * world.BLOCK_SCALE * 0.5;
-    const gx = (wx + half) / world.BLOCK_SCALE;
-    const gz = (wz + half) / world.BLOCK_SCALE;
+    const gx = (wx + world.WORLD_HALF) / world.BLOCK_SCALE;
+    const gz = (wz + world.WORLD_HALF) / world.BLOCK_SCALE;
 
     if (gx < 0 or gz < 0) return null;
     const ix = @as(usize, @intFromFloat(gx));

@@ -7,7 +7,7 @@ const collision = @import("collision.zig");
 
 const deg_to_rad = std.math.pi / 180.0;
 const min_altitude: f32 = 1.0;
-const world_half: f32 = @as(f32, @floatFromInt(world_mod.WORLD_SIZE)) * world_mod.BLOCK_SCALE * 0.5;
+const world_half = world_mod.WORLD_HALF;
 
 pub fn main() void {
     rl.InitWindow(1280, 720, "SnapBench");
