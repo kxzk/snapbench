@@ -97,11 +97,12 @@ fn drawHUD(pos: rl.Vector3, yaw: f32) void {
     const hud_bg = rl.Color{ .r = 255, .g = 255, .b = 255, .a = 120 };
     const text_color = rl.Color{ .r = 40, .g = 40, .b = 40, .a = 255 };
 
-    rl.DrawRectangle(10, 10, 180, 90, hud_bg);
+    rl.DrawRectangle(10, 10, 180, 110, hud_bg);
     rl.DrawText("DRONE", 20, 15, 14, text_color);
     rl.DrawText(rl.TextFormat("X: %.1f", pos.x), 20, 35, 16, text_color);
     rl.DrawText(rl.TextFormat("Y: %.1f", pos.y), 20, 55, 16, text_color);
     rl.DrawText(rl.TextFormat("Z: %.1f", pos.z), 20, 75, 16, text_color);
+    rl.DrawFPS(20, 97);
 
     rl.DrawRectangle(10, 680, 260, 30, hud_bg);
     rl.DrawText("WASD:Move Q/E:Yaw Space/Shift:Up/Down", 15, 687, 10, text_color);

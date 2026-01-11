@@ -120,16 +120,16 @@ fn selectGroundDecoration(x: f32, z: f32, perlin: *const noise.PerlinNoise) cata
         const v = @as(usize, @intFromFloat(@abs(x * 13 + z * 7))) % 6;
         return switch (v) {
             0 => .bush,
-            1 => .grass_small,
+            1 => .bush,
             2 => .flowers,
             3 => .plant,
             4 => .crystal_small,
-            else => .grass_tall,
+            else => .none,
         };
     }
 
     if (n > 0.0) {
-        return .grass_small;
+        return .none;
     }
 
     return .none;
