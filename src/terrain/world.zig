@@ -6,19 +6,35 @@ pub const WORLD_SIZE: usize = 64;
 pub const BLOCK_SCALE: f32 = 2.0;
 pub const WORLD_HALF: f32 = @as(f32, @floatFromInt(WORLD_SIZE)) * BLOCK_SCALE * 0.5;
 
+pub fn cellTopY(height: u8) f32 {
+    if (height == 0) return 0;
+    return @as(f32, @floatFromInt(height - 1)) * BLOCK_SCALE + 1.0;
+}
+
+pub fn cellSurfaceY(height: u8) f32 {
+    if (height == 0) return 0;
+    return @as(f32, @floatFromInt(height - 1)) * BLOCK_SCALE + 0.5;
+}
+
 const MAX_TERRAIN_HEIGHT: u8 = 3;
 const FLOOR_HEIGHT: u8 = 1;
 const ANIMAL_COUNT: usize = 3;
 
 const POCKET_SCALE: f32 = 0.08;
+const POCKET_OFFSET: f32 = 500.0;
 const POCKET_THRESHOLD: f32 = 0.15;
 
 const HEIGHT_SCALE: f32 = 0.12;
 const HEIGHT_OCTAVES: u8 = 3;
 
-fn toFloat(v: usize) f32 {
-    return @floatFromInt(v);
-}
+const TERRAIN_VAR_SCALE: f32 = 0.25;
+const TERRAIN_VAR_OFFSET: f32 = 200.0;
+
+const GROUND_DECO_SCALE: f32 = 0.35;
+const GROUND_DECO_OFFSET: f32 = 300.0;
+
+const TERRAIN_DECO_SCALE: f32 = 0.22;
+const TERRAIN_DECO_OFFSET: f32 = 700.0;
 
 pub const Cell = packed struct {
     height: u8,
@@ -41,10 +57,10 @@ pub const World = struct {
 
         for (0..WORLD_SIZE) |z| {
             for (0..WORLD_SIZE) |x| {
-                const fx = toFloat(x);
-                const fz = toFloat(z);
+                const fx: f32 = @floatFromInt(x);
+                const fz: f32 = @floatFromInt(z);
 
-                const pocket_noise = perlin.sample2D(fx * POCKET_SCALE + 500.0, fz * POCKET_SCALE);
+                const pocket_noise = perlin.sample2D(fx * POCKET_SCALE + POCKET_OFFSET, fz * POCKET_SCALE);
                 const in_pocket = pocket_noise > POCKET_THRESHOLD;
 
                 var height: u8 = FLOOR_HEIGHT;
@@ -78,17 +94,16 @@ pub const World = struct {
         return world;
     }
 
-    pub fn worldPos(x: usize, z: usize, height: u8) struct { x: f32, y: f32, z: f32 } {
+    pub fn worldPos(x: usize, z: usize) struct { x: f32, z: f32 } {
         return .{
-            .x = toFloat(x) * BLOCK_SCALE - WORLD_HALF,
-            .y = @as(f32, @floatFromInt(height)) * BLOCK_SCALE,
-            .z = toFloat(z) * BLOCK_SCALE - WORLD_HALF,
+            .x = @as(f32, @floatFromInt(x)) * BLOCK_SCALE - WORLD_HALF,
+            .z = @as(f32, @floatFromInt(z)) * BLOCK_SCALE - WORLD_HALF,
         };
     }
 };
 
 fn selectTerrainBlock(height: u8, x: f32, z: f32, perlin: *const noise.PerlinNoise) catalog.BlockType {
-    const variation = perlin.sample2D(x * 0.25 + 200.0, z * 0.25);
+    const variation = perlin.sample2D(x * TERRAIN_VAR_SCALE + TERRAIN_VAR_OFFSET, z * TERRAIN_VAR_SCALE);
 
     if (height <= 4) {
         if (variation > 0.3) return .dirt;
@@ -102,7 +117,7 @@ fn selectTerrainBlock(height: u8, x: f32, z: f32, perlin: *const noise.PerlinNoi
 }
 
 fn selectGroundDecoration(x: f32, z: f32, perlin: *const noise.PerlinNoise) catalog.DecoType {
-    const n = perlin.sample2D(x * 0.35 + 300.0, z * 0.35);
+    const n = perlin.sample2D(x * GROUND_DECO_SCALE + GROUND_DECO_OFFSET, z * GROUND_DECO_SCALE);
 
     if (n > 0.3) {
         const v = @as(usize, @intFromFloat(@abs(x * 13 + z * 7))) % 6;
@@ -120,7 +135,7 @@ fn selectGroundDecoration(x: f32, z: f32, perlin: *const noise.PerlinNoise) cata
 }
 
 fn selectTerrainDecoration(x: f32, z: f32, perlin: *const noise.PerlinNoise) catalog.DecoType {
-    const n = perlin.sample2D(x * 0.22 + 700.0, z * 0.22);
+    const n = perlin.sample2D(x * TERRAIN_DECO_SCALE + TERRAIN_DECO_OFFSET, z * TERRAIN_DECO_SCALE);
 
     if (n > 0.2) {
         const v = @as(usize, @intFromFloat(@abs(x * 17 + z * 23))) % 2;

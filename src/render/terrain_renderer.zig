@@ -41,11 +41,6 @@ pub const RenderBatch = struct {
         self.decos.reset();
         self.creatures.reset();
     }
-
-    var static_instance: RenderBatch = .{};
-    pub fn getStatic() *RenderBatch {
-        return &static_instance;
-    }
 };
 
 fn makeTransform(x: f32, y: f32, z: f32, scale: f32) rl.Matrix {
@@ -65,17 +60,18 @@ pub fn collectBatches(w: *const world.World, batch: *RenderBatch) void {
             const cell = w.cells[z][x];
             if (cell.height == 0) continue;
 
-            const wpos = world.World.worldPos(x, z, 0);
+            const wpos = world.World.worldPos(x, z);
             const base_x = wpos.x;
             const base_z = wpos.z;
-            const cell_top_y = @as(f32, @floatFromInt(cell.height - 1)) * world.BLOCK_SCALE + 1.0;
+            const cell_top_y = world.cellTopY(cell.height);
 
-            const start_y: usize = if (cell.height == 1) 0 else 1;
-            for (start_y..cell.height) |y| {
-                const block_type: catalog.BlockType = if (cell.height == 1) .grass else cell.block_type;
-                const block_y = @as(f32, @floatFromInt(y)) * world.BLOCK_SCALE;
-                const transform = makeTransform(base_x, block_y, base_z, 1.0);
-                batch.blocks.push(@intFromEnum(block_type), transform);
+            if (cell.height == 1) {
+                batch.blocks.push(@intFromEnum(catalog.BlockType.grass), makeTransform(base_x, 0, base_z, 1.0));
+            } else {
+                for (1..cell.height) |y| {
+                    const block_y = @as(f32, @floatFromInt(y)) * world.BLOCK_SCALE;
+                    batch.blocks.push(@intFromEnum(cell.block_type), makeTransform(base_x, block_y, base_z, 1.0));
+                }
             }
 
             if (cell.deco_type != .none) {
