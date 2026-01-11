@@ -1,6 +1,8 @@
 const c = @cImport({
     @cInclude("raylib.h");
     @cInclude("raymath.h");
+    @cInclude("rlgl.h");
+    @cInclude("OpenGL/gl3.h");
 });
 
 pub const Vector3 = c.Vector3;
@@ -61,3 +63,18 @@ pub const MatrixRotateY = c.MatrixRotateY;
 pub const MatrixTranslate = c.MatrixTranslate;
 pub const MatrixMultiply = c.MatrixMultiply;
 pub const MatrixIdentity = c.MatrixIdentity;
+
+pub const rlDisableBackfaceCulling = c.rlDisableBackfaceCulling;
+pub const rlEnableBackfaceCulling = c.rlEnableBackfaceCulling;
+pub const rlSetCullFace = c.rlSetCullFace;
+pub const RL_CULL_FACE_BACK = c.RL_CULL_FACE_BACK;
+
+pub const glEnable = c.glEnable;
+pub const glDisable = c.glDisable;
+pub const glPolygonOffset = c.glPolygonOffset;
+pub const GL_POLYGON_OFFSET_FILL: c_uint = 0x8037;
+
+pub const BoundingBox = c.BoundingBox;
+pub const GetModelBoundingBox = c.GetModelBoundingBox;
+pub const TraceLog = c.TraceLog;
+pub const LOG_INFO = c.LOG_INFO;

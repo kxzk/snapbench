@@ -28,6 +28,7 @@ pub fn build(b: *std.Build) void {
     const raylib_lib = raylib_dep.artifact("raylib");
     exe.linkLibrary(raylib_lib);
     exe.root_module.addIncludePath(raylib_dep.path("src"));
+    exe.linkFramework("OpenGL");
 
     b.installArtifact(exe);
 

@@ -76,6 +76,19 @@ pub fn creaturePath(t: CreatureType) ?[:0]const u8 {
     };
 }
 
+pub fn decoHeight(t: DecoType) f32 {
+    return switch (t) {
+        .none => 0.0,
+        .tree => 6.0,
+        .bamboo => 5.0,
+        .flowers => 0.5,
+        .plant => 1.5,
+        .bush => 2.0,
+        .crystal_small => 1.0,
+        .crystal_big => 4.0,
+    };
+}
+
 pub const block_count = @typeInfo(BlockType).@"enum".fields.len;
 pub const deco_count = @typeInfo(DecoType).@"enum".fields.len;
 pub const creature_count = @typeInfo(CreatureType).@"enum".fields.len;

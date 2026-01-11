@@ -1,7 +1,7 @@
 const world = @import("terrain/world.zig");
+const catalog = @import("assets/catalog.zig");
 
-pub const DRONE_RADIUS: f32 = 2.5;
-pub const DECO_HEIGHT: f32 = 4.0;
+pub const DRONE_RADIUS: f32 = 0.0;
 
 pub fn worldToGrid(wx: f32, wz: f32) ?struct { x: usize, z: usize } {
     const half = @as(f32, @floatFromInt(world.WORLD_SIZE)) * world.BLOCK_SCALE * 0.5;
@@ -20,7 +20,7 @@ pub fn getTerrainHeight(w: *const world.World, wx: f32, wz: f32) f32 {
     const grid = worldToGrid(wx, wz) orelse return 0;
     const cell = w.cells[grid.z][grid.x];
     const base = @as(f32, @floatFromInt(cell.height)) * world.BLOCK_SCALE;
-    return if (cell.deco_type != .none) base + DECO_HEIGHT else base;
+    return base + catalog.decoHeight(cell.deco_type);
 }
 
 pub fn checkCollision(w: *const world.World, x: f32, y: f32, z: f32) bool {

@@ -4,7 +4,7 @@ const world = @import("../terrain/world.zig");
 const loader = @import("../assets/loader.zig");
 const catalog = @import("../assets/catalog.zig");
 
-const MODEL_SCALE: f32 = world.BLOCK_SCALE;
+const MODEL_SCALE: f32 = 1.0;
 
 const DECO_SCALE: f32 = 0.8 * MODEL_SCALE;
 const CREATURE_SCALE: f32 = 1.2 * MODEL_SCALE;
@@ -68,10 +68,11 @@ pub fn collectBatches(w: *const world.World, batch: *RenderBatch) void {
             const wpos = world.World.worldPos(x, z, 0);
             const base_x = wpos.x;
             const base_z = wpos.z;
-            const cell_top_y = @as(f32, @floatFromInt(cell.height)) * world.BLOCK_SCALE;
+            const cell_top_y = @as(f32, @floatFromInt(cell.height - 1)) * world.BLOCK_SCALE + MODEL_SCALE;
 
-            for (0..cell.height) |y| {
-                const block_type: catalog.BlockType = if (y == 0) .grass else cell.block_type;
+            const start_y: usize = if (cell.height == 1) 0 else 1;
+            for (start_y..cell.height) |y| {
+                const block_type: catalog.BlockType = if (cell.height == 1) .grass else cell.block_type;
                 const block_y = @as(f32, @floatFromInt(y)) * world.BLOCK_SCALE;
                 const transform = makeTransform(base_x, block_y, base_z, MODEL_SCALE);
                 batch.blocks.push(@intFromEnum(block_type), transform);
