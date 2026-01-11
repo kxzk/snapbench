@@ -58,11 +58,16 @@ pub fn main() void {
         if (rl.IsKeyDown(rl.KEY_E)) yaw -= yaw_speed * dt;
 
         const target_floor = collision.getTerrainHeight(&terrain, target_pos.x, target_pos.z);
-        if (target_floor > pos.y) {
+        if (target_floor > pos.y - collision.DRONE_RADIUS) {
             target_pos.x = pos.x;
             target_pos.z = pos.z;
         }
-        const floor_at_pos = collision.getTerrainHeight(&terrain, target_pos.x, target_pos.z);
+
+        if (collision.checkCreatureCollision(&terrain, target_pos.x, target_pos.y, target_pos.z)) {
+            target_pos = pos;
+        }
+
+        const floor_at_pos = collision.getBaseTerrainHeight(&terrain, target_pos.x, target_pos.z);
         target_pos.y = @max(target_pos.y, floor_at_pos + collision.DRONE_RADIUS);
 
         target_pos = clampToPlayArea(target_pos);

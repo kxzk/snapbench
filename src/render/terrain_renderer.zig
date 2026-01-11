@@ -84,7 +84,7 @@ pub fn collectBatches(w: *const world.World, batch: *RenderBatch) void {
             }
 
             if (cell.creature_type != .none) {
-                const transform = makeTransform(base_x, cell_top_y + CREATURE_SCALE, base_z, CREATURE_SCALE);
+                const transform = makeTransform(base_x, cell_top_y, base_z, CREATURE_SCALE);
                 batch.creatures.push(@intFromEnum(cell.creature_type), transform);
             }
         }
