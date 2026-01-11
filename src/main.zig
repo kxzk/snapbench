@@ -6,6 +6,9 @@ const std = @import("std");
 
 const deg_to_rad = std.math.pi / 180.0;
 const min_altitude: f32 = 1.0;
+const grid_slices: i32 = 100;
+const grid_spacing: f32 = 5.0;
+const grid_half: f32 = @as(f32, @floatFromInt(grid_slices)) * grid_spacing / 2.0;
 
 pub fn main() void {
     rl.InitWindow(1280, 720, "SnapBench");
@@ -21,7 +24,7 @@ pub fn main() void {
         .projection = rl.CAMERA_PERSPECTIVE,
     };
 
-    var model = rl.LoadModel("assets/Drone.glb");
+    var model = rl.LoadModel("assets/drone.glb");
     defer rl.UnloadModel(model);
 
     var pos = rl.Vector3{ .x = 0, .y = 10, .z = 0 };
@@ -50,9 +53,8 @@ pub fn main() void {
         if (rl.IsKeyDown(rl.KEY_Q)) yaw += yaw_speed * dt;
         if (rl.IsKeyDown(rl.KEY_E)) yaw -= yaw_speed * dt;
 
-        target_pos.y = @max(target_pos.y, min_altitude);
+        target_pos = clampToPlayArea(target_pos);
         pos = rl.Vector3Lerp(pos, target_pos, smoothing * dt);
-        pos.y = @max(pos.y, min_altitude);
 
         const model_scale: f32 = 5.0;
         const scale_mat = rl.MatrixScale(model_scale, model_scale, model_scale);
@@ -75,7 +77,7 @@ pub fn main() void {
             rl.BeginMode3D(camera);
             defer rl.EndMode3D();
 
-            drawGrid(100, 5.0, .{ .r = 0xB0, .g = 0x8B, .b = 0x6B, .a = 100 });
+            drawGrid(grid_slices, grid_spacing, .{ .r = 0xB0, .g = 0x8B, .b = 0x6B, .a = 100 });
             rl.DrawModel(model, .{ .x = 0, .y = 0, .z = 0 }, 1.0, .{ .r = 255, .g = 255, .b = 255, .a = 255 });
         }
 
@@ -103,9 +105,9 @@ fn drawHUD(pos: rl.Vector3, yaw: f32) void {
     const ax: i32 = cx + @as(i32, @intFromFloat(@sin(yaw_rad) * arrow_len));
     const ay: i32 = cy - @as(i32, @intFromFloat(@cos(yaw_rad) * arrow_len));
 
-    rl.DrawCircleLines(cx, cy, 40, rl.RAYWHITE);
-    rl.DrawLine(cx, cy, ax, ay, rl.ORANGE);
-    rl.DrawCircle(ax, ay, 4, rl.ORANGE);
+    rl.DrawCircleLines(cx, cy, 40, text_color);
+    rl.DrawLine(cx, cy, ax, ay, text_color);
+    rl.DrawCircle(ax, ay, 4, text_color);
 }
 
 fn drawEnvironmentGradient() void {
@@ -124,6 +126,14 @@ fn drawEnvironmentGradient() void {
     rl.DrawRectangleGradientV(0, quarter_h, w, quarter_h, sky_mid, horizon);
     rl.DrawRectangleGradientV(0, half_h, w, quarter_h, horizon, ground_mid);
     rl.DrawRectangleGradientV(0, half_h + quarter_h, w, quarter_h, ground_mid, ground_bottom);
+}
+
+fn clampToPlayArea(p: rl.Vector3) rl.Vector3 {
+    return .{
+        .x = std.math.clamp(p.x, -grid_half, grid_half),
+        .y = @max(p.y, min_altitude),
+        .z = std.math.clamp(p.z, -grid_half, grid_half),
+    };
 }
 
 fn drawGrid(slices: i32, spacing: f32, color: rl.Color) void {
