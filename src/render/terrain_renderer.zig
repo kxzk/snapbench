@@ -4,10 +4,8 @@ const world = @import("../terrain/world.zig");
 const loader = @import("../assets/loader.zig");
 const catalog = @import("../assets/catalog.zig");
 
-const MODEL_SCALE: f32 = 1.0;
-
-const DECO_SCALE: f32 = 0.8 * MODEL_SCALE;
-const CREATURE_SCALE: f32 = 1.2 * MODEL_SCALE;
+const DECO_SCALE: f32 = 0.8;
+const CREATURE_SCALE: f32 = 1.2;
 const MAX_INSTANCES: usize = 8192;
 
 fn TransformBatch(comptime count: usize) type {
@@ -70,13 +68,13 @@ pub fn collectBatches(w: *const world.World, batch: *RenderBatch) void {
             const wpos = world.World.worldPos(x, z, 0);
             const base_x = wpos.x;
             const base_z = wpos.z;
-            const cell_top_y = @as(f32, @floatFromInt(cell.height - 1)) * world.BLOCK_SCALE + MODEL_SCALE;
+            const cell_top_y = @as(f32, @floatFromInt(cell.height - 1)) * world.BLOCK_SCALE + 1.0;
 
             const start_y: usize = if (cell.height == 1) 0 else 1;
             for (start_y..cell.height) |y| {
                 const block_type: catalog.BlockType = if (cell.height == 1) .grass else cell.block_type;
                 const block_y = @as(f32, @floatFromInt(y)) * world.BLOCK_SCALE;
-                const transform = makeTransform(base_x, block_y, base_z, MODEL_SCALE);
+                const transform = makeTransform(base_x, block_y, base_z, 1.0);
                 batch.blocks.push(@intFromEnum(block_type), transform);
             }
 
@@ -93,7 +91,7 @@ pub fn collectBatches(w: *const world.World, batch: *RenderBatch) void {
     }
 }
 
-pub fn renderBatches(batch: *const RenderBatch, cache: *const loader.ModelCache) void {
+pub fn render(cache: *const loader.ModelCache, batch: *const RenderBatch) void {
     for (0..catalog.block_count) |i| {
         const count = batch.blocks.counts[i];
         if (count > 0 and cache.blocks[i] != null) {
@@ -118,14 +116,8 @@ pub fn renderBatches(batch: *const RenderBatch, cache: *const loader.ModelCache)
 
 fn drawModelInstanced(model: rl.Model, transforms: *const [MAX_INSTANCES]rl.Matrix, count: usize) void {
     const mesh_count: usize = @intCast(model.meshCount);
-    for (0..count) |i| {
-        for (0..mesh_count) |mi| {
-            const mat_idx: usize = @intCast(model.meshMaterial[mi]);
-            rl.DrawMesh(model.meshes[mi], model.materials[mat_idx], transforms[i]);
-        }
+    for (0..mesh_count) |mi| {
+        const mat_idx: usize = @intCast(model.meshMaterial[mi]);
+        rl.DrawMeshInstanced(model.meshes[mi], model.materials[mat_idx], @ptrCast(transforms), @intCast(count));
     }
-}
-
-pub fn render(cache: *const loader.ModelCache, batch: *const RenderBatch) void {
-    renderBatches(batch, cache);
 }

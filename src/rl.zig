@@ -52,7 +52,6 @@ pub const DrawCircleLines = c.DrawCircleLines;
 pub const LoadModel = c.LoadModel;
 pub const UnloadModel = c.UnloadModel;
 pub const DrawModel = c.DrawModel;
-pub const DrawMesh = c.DrawMesh;
 pub const DrawMeshInstanced = c.DrawMeshInstanced;
 pub const TextFormat = c.TextFormat;
 pub const Vector3Add = c.Vector3Add;
@@ -62,19 +61,13 @@ pub const MatrixScale = c.MatrixScale;
 pub const MatrixRotateY = c.MatrixRotateY;
 pub const MatrixTranslate = c.MatrixTranslate;
 pub const MatrixMultiply = c.MatrixMultiply;
-pub const MatrixIdentity = c.MatrixIdentity;
 
-pub const rlDisableBackfaceCulling = c.rlDisableBackfaceCulling;
-pub const rlEnableBackfaceCulling = c.rlEnableBackfaceCulling;
-pub const rlSetCullFace = c.rlSetCullFace;
-pub const RL_CULL_FACE_BACK = c.RL_CULL_FACE_BACK;
-
-pub const glEnable = c.glEnable;
-pub const glDisable = c.glDisable;
-pub const glPolygonOffset = c.glPolygonOffset;
-pub const GL_POLYGON_OFFSET_FILL: c_uint = 0x8037;
-
-pub const BoundingBox = c.BoundingBox;
-pub const GetModelBoundingBox = c.GetModelBoundingBox;
-pub const TraceLog = c.TraceLog;
-pub const LOG_INFO = c.LOG_INFO;
+pub const Shader = c.Shader;
+pub const LoadShader = c.LoadShader;
+pub const UnloadShader = c.UnloadShader;
+pub const GetShaderLocation = c.GetShaderLocation;
+pub const GetShaderLocationAttrib = c.GetShaderLocationAttrib;
+pub const SHADER_LOC_MATRIX_MVP = c.SHADER_LOC_MATRIX_MVP;
+pub const SHADER_LOC_MATRIX_MODEL = c.SHADER_LOC_MATRIX_MODEL;
+pub const SHADER_LOC_COLOR_DIFFUSE = c.SHADER_LOC_COLOR_DIFFUSE;
+pub const SHADER_LOC_MAP_DIFFUSE = c.SHADER_LOC_MAP_DIFFUSE;

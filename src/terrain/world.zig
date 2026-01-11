@@ -4,8 +4,6 @@ const catalog = @import("../assets/catalog.zig");
 
 pub const WORLD_SIZE: usize = 64;
 pub const BLOCK_SCALE: f32 = 2.0;
-pub const CHUNK_SIZE: usize = 8;
-pub const CHUNK_COUNT: usize = WORLD_SIZE / CHUNK_SIZE;
 
 const MAX_TERRAIN_HEIGHT: u8 = 3;
 const FLOOR_HEIGHT: u8 = 1;
@@ -28,17 +26,8 @@ pub const Cell = packed struct {
     creature_type: catalog.CreatureType,
 };
 
-pub const Chunk = struct {
-    center_x: f32,
-    center_z: f32,
-    radius_sq: f32,
-    start_x: usize,
-    start_z: usize,
-};
-
 pub const World = struct {
     cells: [WORLD_SIZE][WORLD_SIZE]Cell,
-    chunks: [CHUNK_COUNT][CHUNK_COUNT]Chunk,
     seed: u64,
 
     pub fn generate(seed: u64) World {
@@ -84,7 +73,6 @@ pub const World = struct {
         }
 
         placeCreatures(&world, rand);
-        initChunks(&world);
 
         return world;
     }
@@ -128,10 +116,6 @@ fn selectGroundDecoration(x: f32, z: f32, perlin: *const noise.PerlinNoise) cata
         };
     }
 
-    if (n > 0.0) {
-        return .none;
-    }
-
     return .none;
 }
 
@@ -167,40 +151,5 @@ fn placeCreatures(world: *World, rand: std.Random) void {
         const creature_id: u8 = @intCast(rand.intRangeAtMost(usize, 1, catalog.creature_count - 1));
         world.cells[z][x].creature_type = @enumFromInt(creature_id);
         placed += 1;
-    }
-}
-
-fn initChunks(world: *World) void {
-    const half_world = toFloat(WORLD_SIZE) * BLOCK_SCALE * 0.5;
-    const chunk_world_size = toFloat(CHUNK_SIZE) * BLOCK_SCALE;
-    const half_chunk = chunk_world_size * 0.5;
-    const base_radius_sq = half_chunk * half_chunk * 2.0;
-
-    for (0..CHUNK_COUNT) |cz| {
-        for (0..CHUNK_COUNT) |cx| {
-            const start_x = cx * CHUNK_SIZE;
-            const start_z = cz * CHUNK_SIZE;
-
-            const center_x = toFloat(start_x) * BLOCK_SCALE - half_world + half_chunk;
-            const center_z = toFloat(start_z) * BLOCK_SCALE - half_world + half_chunk;
-
-            var max_height: u8 = 0;
-            for (start_z..start_z + CHUNK_SIZE) |z| {
-                for (start_x..start_x + CHUNK_SIZE) |x| {
-                    max_height = @max(max_height, world.cells[z][x].height);
-                }
-            }
-
-            const height_margin = toFloat(max_height) * BLOCK_SCALE;
-            const radius_sq = base_radius_sq + height_margin * height_margin;
-
-            world.chunks[cz][cx] = .{
-                .center_x = center_x,
-                .center_z = center_z,
-                .radius_sq = radius_sq,
-                .start_x = start_x,
-                .start_z = start_z,
-            };
-        }
     }
 }
