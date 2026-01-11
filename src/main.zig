@@ -1,20 +1,17 @@
-const rl = @cImport({
-    @cInclude("raylib.h");
-    @cInclude("raymath.h");
-});
 const std = @import("std");
+const rl = @import("rl.zig");
+const world_mod = @import("terrain/world.zig");
+const terrain_renderer = @import("render/terrain_renderer.zig");
+const loader = @import("assets/loader.zig");
+const collision = @import("collision.zig");
 
 const deg_to_rad = std.math.pi / 180.0;
 const min_altitude: f32 = 1.0;
-const grid_slices: i32 = 100;
-const grid_spacing: f32 = 5.0;
-const grid_half: f32 = @as(f32, @floatFromInt(grid_slices)) * grid_spacing / 2.0;
+const world_half: f32 = @as(f32, @floatFromInt(world_mod.WORLD_SIZE)) * world_mod.BLOCK_SCALE * 0.5;
 
 pub fn main() void {
     rl.InitWindow(1280, 720, "SnapBench");
     defer rl.CloseWindow();
-
-    // rl.DisableCursor();
 
     var camera = rl.Camera3D{
         .position = .{ .x = 0, .y = 50, .z = -100 },
@@ -27,7 +24,14 @@ pub fn main() void {
     var model = rl.LoadModel("assets/drone.glb");
     defer rl.UnloadModel(model);
 
-    var pos = rl.Vector3{ .x = 0, .y = 10, .z = 0 };
+    var model_cache = loader.ModelCache{};
+    model_cache.loadAll();
+    defer model_cache.unloadAll();
+
+    const terrain = world_mod.World.generate(@intCast(@as(u64, @bitCast(std.time.timestamp()))));
+    const render_batch = terrain_renderer.RenderBatch.getStatic();
+
+    var pos = rl.Vector3{ .x = 0, .y = 20, .z = 0 };
     var yaw: f32 = 0;
     var target_pos = pos;
 
@@ -46,12 +50,16 @@ pub fn main() void {
 
         if (rl.IsKeyDown(rl.KEY_W) or rl.IsKeyDown(rl.KEY_UP)) target_pos = rl.Vector3Add(target_pos, rl.Vector3Scale(forward, move_speed * dt));
         if (rl.IsKeyDown(rl.KEY_S) or rl.IsKeyDown(rl.KEY_DOWN)) target_pos = rl.Vector3Add(target_pos, rl.Vector3Scale(forward, -move_speed * dt));
-        if (rl.IsKeyDown(rl.KEY_A) or rl.IsKeyDown(rl.KEY_LEFT)) target_pos = rl.Vector3Add(target_pos, rl.Vector3Scale(right, -move_speed * dt));
-        if (rl.IsKeyDown(rl.KEY_D) or rl.IsKeyDown(rl.KEY_RIGHT)) target_pos = rl.Vector3Add(target_pos, rl.Vector3Scale(right, move_speed * dt));
+        if (rl.IsKeyDown(rl.KEY_A) or rl.IsKeyDown(rl.KEY_LEFT)) target_pos = rl.Vector3Add(target_pos, rl.Vector3Scale(right, move_speed * dt));
+        if (rl.IsKeyDown(rl.KEY_D) or rl.IsKeyDown(rl.KEY_RIGHT)) target_pos = rl.Vector3Add(target_pos, rl.Vector3Scale(right, -move_speed * dt));
         if (rl.IsKeyDown(rl.KEY_SPACE)) target_pos.y += vertical_speed * dt;
         if (rl.IsKeyDown(rl.KEY_LEFT_SHIFT)) target_pos.y -= vertical_speed * dt;
         if (rl.IsKeyDown(rl.KEY_Q)) yaw += yaw_speed * dt;
         if (rl.IsKeyDown(rl.KEY_E)) yaw -= yaw_speed * dt;
+
+        if (collision.checkCollision(&terrain, target_pos.x, target_pos.y, target_pos.z)) {
+            target_pos = pos;
+        }
 
         target_pos = clampToPlayArea(target_pos);
         pos = rl.Vector3Lerp(pos, target_pos, smoothing * dt);
@@ -77,7 +85,7 @@ pub fn main() void {
             rl.BeginMode3D(camera);
             defer rl.EndMode3D();
 
-            drawGrid(grid_slices, grid_spacing, .{ .r = 0xB0, .g = 0x8B, .b = 0x6B, .a = 100 });
+            terrain_renderer.render(&terrain, &model_cache, render_batch);
             rl.DrawModel(model, .{ .x = 0, .y = 0, .z = 0 }, 1.0, .{ .r = 255, .g = 255, .b = 255, .a = 255 });
         }
 
@@ -130,28 +138,8 @@ fn drawEnvironmentGradient() void {
 
 fn clampToPlayArea(p: rl.Vector3) rl.Vector3 {
     return .{
-        .x = std.math.clamp(p.x, -grid_half, grid_half),
+        .x = std.math.clamp(p.x, -world_half, world_half),
         .y = @max(p.y, min_altitude),
-        .z = std.math.clamp(p.z, -grid_half, grid_half),
+        .z = std.math.clamp(p.z, -world_half, world_half),
     };
-}
-
-fn drawGrid(slices: i32, spacing: f32, color: rl.Color) void {
-    const half: f32 = @as(f32, @floatFromInt(slices)) * spacing / 2.0;
-
-    for (0..@intCast(slices + 1)) |i| {
-        const offset: f32 = @as(f32, @floatFromInt(i)) * spacing - half;
-
-        rl.DrawLine3D(
-            .{ .x = offset, .y = 0, .z = -half },
-            .{ .x = offset, .y = 0, .z = half },
-            color,
-        );
-
-        rl.DrawLine3D(
-            .{ .x = -half, .y = 0, .z = offset },
-            .{ .x = half, .y = 0, .z = offset },
-            color,
-        );
-    }
 }

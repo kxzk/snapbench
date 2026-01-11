@@ -1,13 +1,14 @@
+const std = @import("std");
 const rl = @import("../rl.zig");
 const world = @import("../terrain/world.zig");
 const loader = @import("../assets/loader.zig");
 const catalog = @import("../assets/catalog.zig");
 
-const BLOCK_SCALE: f32 = 1.0;
-const DECO_SCALE: f32 = 0.8;
-const CREATURE_SCALE: f32 = 1.2;
+const MODEL_SCALE: f32 = world.BLOCK_SCALE;
 
-const MAX_INSTANCES: usize = 2048;
+const DECO_SCALE: f32 = 0.8 * MODEL_SCALE;
+const CREATURE_SCALE: f32 = 1.2 * MODEL_SCALE;
+const MAX_INSTANCES: usize = 8192;
 
 fn TransformBatch(comptime count: usize) type {
     return struct {
@@ -49,18 +50,10 @@ pub const RenderBatch = struct {
     }
 };
 
-fn blockTypeForLayer(y: usize) catalog.BlockType {
-    return switch (y) {
-        0 => .grass,
-        1 => .dirt,
-        else => .coal,
-    };
-}
-
 fn makeTransform(x: f32, y: f32, z: f32, scale: f32) rl.Matrix {
     return rl.MatrixMultiply(
-        rl.MatrixTranslate(x, y, z),
         rl.MatrixScale(scale, scale, scale),
+        rl.MatrixTranslate(x, y, z),
     );
 }
 
@@ -78,10 +71,10 @@ pub fn collectBatches(w: *const world.World, batch: *RenderBatch) void {
             const cell_top_y = @as(f32, @floatFromInt(cell.height)) * world.BLOCK_SCALE;
 
             for (0..cell.height) |y| {
-                const layer_block = blockTypeForLayer(y);
-                const block_y = @as(f32, @floatFromInt(y + 1)) * world.BLOCK_SCALE;
-                const transform = makeTransform(base_x, block_y, base_z, BLOCK_SCALE);
-                batch.blocks.push(@intFromEnum(layer_block), transform);
+                const block_type: catalog.BlockType = if (y == 0) .grass else cell.block_type;
+                const block_y = @as(f32, @floatFromInt(y)) * world.BLOCK_SCALE;
+                const transform = makeTransform(base_x, block_y, base_z, MODEL_SCALE);
+                batch.blocks.push(@intFromEnum(block_type), transform);
             }
 
             if (cell.deco_type != .none) {
@@ -100,42 +93,33 @@ pub fn collectBatches(w: *const world.World, batch: *RenderBatch) void {
 pub fn renderBatches(batch: *const RenderBatch, cache: *const loader.ModelCache) void {
     for (0..catalog.block_count) |i| {
         const count = batch.blocks.counts[i];
-        if (count > 0) {
-            if (cache.blocks[i]) |model| {
-                drawModelInstanced(model, &batch.blocks.transforms[i], count);
-            }
+        if (count > 0 and cache.blocks[i] != null) {
+            drawModelInstanced(cache.blocks[i].?, &batch.blocks.transforms[i], count);
         }
     }
 
     for (0..catalog.deco_count) |i| {
         const count = batch.decos.counts[i];
-        if (count > 0) {
-            if (cache.decos[i]) |model| {
-                drawModelInstanced(model, &batch.decos.transforms[i], count);
-            }
+        if (count > 0 and cache.decos[i] != null) {
+            drawModelInstanced(cache.decos[i].?, &batch.decos.transforms[i], count);
         }
     }
 
     for (0..catalog.creature_count) |i| {
         const count = batch.creatures.counts[i];
-        if (count > 0) {
-            if (cache.creatures[i]) |model| {
-                drawModelInstanced(model, &batch.creatures.transforms[i], count);
-            }
+        if (count > 0 and cache.creatures[i] != null) {
+            drawModelInstanced(cache.creatures[i].?, &batch.creatures.transforms[i], count);
         }
     }
 }
 
 fn drawModelInstanced(model: rl.Model, transforms: *const [MAX_INSTANCES]rl.Matrix, count: usize) void {
     const mesh_count: usize = @intCast(model.meshCount);
-    for (0..mesh_count) |mi| {
-        const mat_idx: usize = @intCast(model.meshMaterial[mi]);
-        rl.DrawMeshInstanced(
-            model.meshes[mi],
-            model.materials[mat_idx],
-            @ptrCast(transforms),
-            @intCast(count),
-        );
+    for (0..count) |i| {
+        for (0..mesh_count) |mi| {
+            const mat_idx: usize = @intCast(model.meshMaterial[mi]);
+            rl.DrawMesh(model.meshes[mi], model.materials[mat_idx], transforms[i]);
+        }
     }
 }
 

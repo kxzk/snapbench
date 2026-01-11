@@ -63,9 +63,7 @@ pub const World = struct {
                 if (in_pocket) {
                     const base_height = perlin.octaveNoise(fx * HEIGHT_SCALE, fz * HEIGHT_SCALE, HEIGHT_OCTAVES, 0.5);
                     const normalized = (base_height + 1.0) * 0.5;
-                    const terrain_height = @as(u8, @intFromFloat(normalized * @as(f32, @floatFromInt(MAX_TERRAIN_HEIGHT - 1)))) + 2;
-                    height = terrain_height;
-
+                    height = @as(u8, @intFromFloat(normalized * @as(f32, @floatFromInt(MAX_TERRAIN_HEIGHT - 1)))) + 2;
                     block_type = selectTerrainBlock(height, fx, fz, &perlin);
                 }
 
@@ -104,16 +102,15 @@ pub const World = struct {
 fn selectTerrainBlock(height: u8, x: f32, z: f32, perlin: *const noise.PerlinNoise) catalog.BlockType {
     const variation = perlin.sample2D(x * 0.25 + 200.0, z * 0.25);
 
-    if (height >= 7) {
-        if (variation > 0.1) return .grey_bricks;
-        return .brick;
-    }
-    if (height >= 4) {
-        if (variation > 0.2) return .wood_planks;
-        return .brick;
+    if (height <= 4) {
+        if (variation > 0.3) return .dirt;
+        if (variation > 0.1) return .coal;
+        if (variation > -0.1) return .brick;
+        return .wood_planks;
     }
 
-    return .grass;
+    if (variation > 0.1) return .grey_bricks;
+    return .brick;
 }
 
 fn selectGroundDecoration(x: f32, z: f32, perlin: *const noise.PerlinNoise) catalog.DecoType {

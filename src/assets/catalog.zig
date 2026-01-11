@@ -39,44 +39,44 @@ pub const CreatureType = enum(u8) {
 pub fn blockPath(t: BlockType) ?[:0]const u8 {
     return switch (t) {
         .air => null,
-        .grass => "assets/Grass Block.glb",
-        .dirt => "assets/Dirt Block.glb",
-        .coal => "assets/Coal Block.glb",
-        .snow => "assets/Snow Block.glb",
-        .diamond => "assets/Diamond Block.glb",
-        .crystal => "assets/Crystal Block.glb",
-        .brick => "assets/Brick Block.glb",
-        .wood_planks => "assets/Wood Planks Block.glb",
-        .grey_bricks => "assets/Grey Bricks.glb",
+        .grass => "assets/grass-block.glb",
+        .dirt => "assets/dirt-block.glb",
+        .coal => "assets/coal-block.glb",
+        .snow => "assets/snow-block.glb",
+        .diamond => "assets/diamond-block.glb",
+        .crystal => "assets/crystal-block.glb",
+        .brick => "assets/brick-block.glb",
+        .wood_planks => "assets/wood-planks-block.glb",
+        .grey_bricks => "assets/grey-bricks.glb",
     };
 }
 
 pub fn decoPath(t: DecoType) ?[:0]const u8 {
     return switch (t) {
         .none => null,
-        .tree => "assets/Tree.glb",
-        .bamboo => "assets/Bamboo.glb",
-        .flowers => "assets/Flowers.glb",
-        .grass_tall => "assets/Grass.glb",
-        .grass_small => "assets/Grass Small.glb",
-        .plant => "assets/Plant.glb",
-        .bush => "assets/Bush.glb",
-        .crystal_small => "assets/Crystal.glb",
-        .crystal_big => "assets/Big Crystal.glb",
+        .tree => "assets/tree.glb",
+        .bamboo => "assets/bamboo.glb",
+        .flowers => "assets/flowers.glb",
+        .grass_tall => "assets/grass.glb",
+        .grass_small => "assets/grass-small.glb",
+        .plant => "assets/plant.glb",
+        .bush => "assets/bush.glb",
+        .crystal_small => "assets/crystal.glb",
+        .crystal_big => "assets/big-crystal.glb",
     };
 }
 
 pub fn creaturePath(t: CreatureType) ?[:0]const u8 {
     return switch (t) {
         .none => null,
-        .cat => "assets/Cat.glb",
-        .chicken => "assets/Chicken.glb",
-        .dog => "assets/Dog.glb",
-        .horse => "assets/Horse.glb",
-        .pig => "assets/Pig.glb",
-        .raccoon => "assets/Raccoon.glb",
-        .sheep => "assets/Sheep.glb",
-        .wolf => "assets/Wolf.glb",
+        .cat => "assets/cat.glb",
+        .chicken => "assets/chicken.glb",
+        .dog => "assets/dog.glb",
+        .horse => "assets/horse.glb",
+        .pig => "assets/pig.glb",
+        .raccoon => "assets/raccoon.glb",
+        .sheep => "assets/sheep.glb",
+        .wolf => "assets/wolf.glb",
     };
 }
 
