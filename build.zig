@@ -1,5 +1,8 @@
 const std = @import("std");
 
+/// Configures the build for the SnapBench executable and tests.
+/// Links raylib from the dependency, sets up OpenGL framework on macOS,
+/// and defines "run" and "test" build steps for development workflow.
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});

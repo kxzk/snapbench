@@ -3,6 +3,9 @@ const catalog = @import("catalog.zig");
 
 var instancing_shader: ?rl.Shader = null;
 
+/// Loads and caches the instancing shader, returning the cached version on subsequent calls.
+/// Sets up shader uniform locations for MVP matrix, per-instance transforms, diffuse color,
+/// and texture sampler. The shader enables hardware instancing for batch rendering.
 fn loadInstancingShader() rl.Shader {
     if (instancing_shader) |s| return s;
 
@@ -15,6 +18,8 @@ fn loadInstancingShader() rl.Shader {
     return shader;
 }
 
+/// Replaces all material shaders on a model with the instancing shader.
+/// Must be called after loading each model to enable GPU instanced rendering.
 fn applyInstancingShader(model: *rl.Model) void {
     const shader = loadInstancingShader();
     for (model.materials[0..@intCast(model.materialCount)]) |*mat| {
@@ -22,11 +27,17 @@ fn applyInstancingShader(model: *rl.Model) void {
     }
 }
 
+/// Caches loaded models by type for efficient lookup during rendering.
+/// Indexed by enum values to avoid hash lookups. Optional slots handle types
+/// without models (air blocks, no decoration/creature).
 pub const ModelCache = struct {
     blocks: [catalog.block_count]?rl.Model = .{null} ** catalog.block_count,
     decos: [catalog.deco_count]?rl.Model = .{null} ** catalog.deco_count,
     creatures: [catalog.creature_count]?rl.Model = .{null} ** catalog.creature_count,
 
+    /// Loads all models from disk and applies the instancing shader to each.
+    /// Uses comptime inline loops to unroll loading; skips types with null paths.
+    /// Call once at startup; models stay loaded for the application lifetime.
     pub fn loadAll(self: *ModelCache) void {
         inline for (0..catalog.block_count) |i| {
             const t: catalog.BlockType = @enumFromInt(i);
@@ -51,6 +62,8 @@ pub const ModelCache = struct {
         }
     }
 
+    /// Unloads all cached models and the shared instancing shader.
+    /// Must be called before window close to properly release GPU resources.
     pub fn unloadAll(self: *ModelCache) void {
         inline for (.{ &self.blocks, &self.decos, &self.creatures }) |arr| {
             for (arr) |*slot| if (slot.*) |model| {

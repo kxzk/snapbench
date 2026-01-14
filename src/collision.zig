@@ -5,6 +5,9 @@ pub const DRONE_RADIUS: f32 = 1.5;
 pub const CREATURE_RADIUS: f32 = 1.0;
 pub const CREATURE_HEIGHT: f32 = 2.0;
 
+/// Converts world-space XZ coordinates to grid cell indices.
+/// Returns null if the position is outside the world bounds.
+/// The grid origin (0,0) maps to world position (-WORLD_HALF, -WORLD_HALF).
 pub fn worldToGrid(wx: f32, wz: f32) ?struct { x: usize, z: usize } {
     const gx = (wx + world.WORLD_HALF) / world.BLOCK_SCALE;
     const gz = (wz + world.WORLD_HALF) / world.BLOCK_SCALE;
@@ -17,18 +20,25 @@ pub fn worldToGrid(wx: f32, wz: f32) ?struct { x: usize, z: usize } {
     return .{ .x = ix, .z = iz };
 }
 
+/// Returns the terrain surface height at a world position, ignoring decorations.
+/// Used for floor collision to prevent the drone from clipping through terrain blocks.
 pub fn getBaseTerrainHeight(w: *const world.World, wx: f32, wz: f32) f32 {
     const grid = worldToGrid(wx, wz) orelse return 0;
     const cell = w.cells[grid.z][grid.x];
     return world.cellSurfaceY(cell.height);
 }
 
+/// Returns the effective collision height at a world position, including decoration height.
+/// Trees and other tall decorations extend the collision surface upward.
 pub fn getTerrainHeight(w: *const world.World, wx: f32, wz: f32) f32 {
     const grid = worldToGrid(wx, wz) orelse return 0;
     const cell = w.cells[grid.z][grid.x];
     return world.cellSurfaceY(cell.height) + catalog.decoHeight(cell.deco_type);
 }
 
+/// Checks if the drone at position (x,y,z) collides with any creature.
+/// Samples a 3x3 neighborhood of grid cells to catch creatures near cell boundaries.
+/// Creatures are treated as vertical cylinders for collision purposes.
 pub fn checkCreatureCollision(w: *const world.World, x: f32, y: f32, z: f32) bool {
     const grid = worldToGrid(x, z) orelse return false;
 
@@ -47,6 +57,10 @@ pub fn checkCreatureCollision(w: *const world.World, x: f32, y: f32, z: f32) boo
 
 pub const Vec3 = struct { x: f32, y: f32, z: f32 };
 
+/// Resolves a proposed movement from current to target position, handling collisions.
+/// First blocks horizontal movement if it would enter terrain/decoration volumes,
+/// then blocks if it would hit creatures, finally enforces minimum floor clearance.
+/// Returns the valid position the drone can actually move to.
 pub fn resolveMove(w: *const world.World, current: Vec3, target: Vec3) Vec3 {
     var result = target;
 
@@ -66,6 +80,9 @@ pub fn resolveMove(w: *const world.World, current: Vec3, target: Vec3) Vec3 {
     return result;
 }
 
+/// Tests cylinder-sphere overlap between a creature at grid (gx,gz) and the drone.
+/// First checks XZ distance (combined radii), then checks Y overlap between
+/// the drone's spherical bounds and the creature's cylindrical height.
 fn creatureCylinderOverlap(w: *const world.World, gx: usize, gz: usize, drone_x: f32, drone_y: f32, drone_z: f32) bool {
     const cell = w.cells[gz][gx];
     if (cell.creature_type == .none) return false;

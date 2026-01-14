@@ -34,6 +34,8 @@ pub const CreatureType = enum(u8) {
     wolf,
 };
 
+/// Returns the asset file path for a block type, or null for air (no model).
+/// Paths are null-terminated for direct use with C APIs (raylib).
 pub fn blockPath(t: BlockType) ?[:0]const u8 {
     return switch (t) {
         .air => null,
@@ -49,6 +51,7 @@ pub fn blockPath(t: BlockType) ?[:0]const u8 {
     };
 }
 
+/// Returns the asset file path for a decoration type, or null for none.
 pub fn decoPath(t: DecoType) ?[:0]const u8 {
     return switch (t) {
         .none => null,
@@ -62,6 +65,7 @@ pub fn decoPath(t: DecoType) ?[:0]const u8 {
     };
 }
 
+/// Returns the asset file path for a creature type, or null for none.
 pub fn creaturePath(t: CreatureType) ?[:0]const u8 {
     return switch (t) {
         .none => null,
@@ -76,6 +80,9 @@ pub fn creaturePath(t: CreatureType) ?[:0]const u8 {
     };
 }
 
+/// Returns the collision height of a decoration for terrain height calculations.
+/// Trees are tall (6.0), flowers are short (0.5). Used to extend the effective
+/// terrain surface upward so the drone can't fly through decoration geometry.
 pub fn decoHeight(t: DecoType) f32 {
     return switch (t) {
         .none => 0.0,

@@ -1,5 +1,6 @@
 const std = @import("std");
 const rl = @import("rl.zig");
+const math = @import("math.zig");
 const world_mod = @import("terrain/world.zig");
 const terrain_renderer = @import("render/terrain_renderer.zig");
 const loader = @import("assets/loader.zig");
@@ -11,6 +12,9 @@ const world_half = world_mod.WORLD_HALF;
 
 const Directions = struct { forward: rl.Vector3, right: rl.Vector3 };
 
+/// Converts a yaw angle to forward/right direction vectors in the XZ plane.
+/// Used to determine movement directions relative to where the camera is facing,
+/// enabling WASD controls that feel intuitive regardless of current orientation.
 fn yawToDirections(yaw_rad: f32) Directions {
     return .{
         .forward = .{ .x = @sin(yaw_rad), .y = 0, .z = @cos(yaw_rad) },
@@ -18,6 +22,9 @@ fn yawToDirections(yaw_rad: f32) Directions {
     };
 }
 
+/// Processes keyboard input to update the drone's target position and yaw.
+/// Modifies target_pos (not actual position) to allow smooth interpolation in the game loop.
+/// This separation of input-target from rendered-position enables the "floaty" drone feel.
 fn handleInput(target_pos: *rl.Vector3, yaw: *f32, dirs: Directions, dt: f32) void {
     const move_speed: f32 = 30.0;
     const vertical_speed: f32 = 20.0;
@@ -88,11 +95,9 @@ pub fn main() void {
         target_pos = clampToPlayArea(target_pos);
         pos = rl.Vector3Lerp(pos, target_pos, smoothing * dt);
 
-        model.transform = makeTRS(pos, updated_yaw_rad, 5.0);
+        model.transform = math.matrixTRS(pos, updated_yaw_rad, 5.0);
 
-        // Camera behind drone: drone faces {sin(yaw), 0, -cos(yaw)}, so behind is {-sin(yaw), 0, cos(yaw)}
-        const cam_dirs = yawToDirections(yaw * deg_to_rad);
-        const cam_offset = rl.Vector3{ .x = -cam_dirs.forward.x * 25, .y = 12, .z = cam_dirs.forward.z * 25 };
+        const cam_offset = rl.Vector3{ .x = -dirs.forward.x * 25, .y = 12, .z = dirs.forward.z * 25 };
         camera.position = rl.Vector3Add(pos, cam_offset);
         camera.target = pos;
 
@@ -118,12 +123,16 @@ pub fn main() void {
 const hud_bg = rl.Color{ .r = 255, .g = 255, .b = 255, .a = 120 };
 const hud_text = rl.Color{ .r = 40, .g = 40, .b = 40, .a = 255 };
 
+/// Renders all HUD elements: drone info panel, controls legend, and compass.
+/// Orchestrates the individual HUD component draws.
 fn drawHUD(pos: rl.Vector3, yaw: f32) void {
     drawDroneInfo(pos);
     drawControls();
     drawCompass(yaw);
 }
 
+/// Draws the top-left info panel showing drone XYZ coordinates and FPS counter.
+/// Provides real-time telemetry for debugging and gameplay awareness.
 fn drawDroneInfo(pos: rl.Vector3) void {
     rl.DrawRectangle(10, 10, 180, 110, hud_bg);
     rl.DrawText("DRONE", 20, 15, 14, hud_text);
@@ -133,11 +142,16 @@ fn drawDroneInfo(pos: rl.Vector3) void {
     rl.DrawFPS(20, 97);
 }
 
+/// Draws the bottom-left controls legend showing available keyboard inputs.
+/// Helps players learn the control scheme without external documentation.
 fn drawControls() void {
     rl.DrawRectangle(10, 680, 260, 30, hud_bg);
     rl.DrawText("WASD:Move Q/E:Yaw Space/Shift:Up/Down", 15, 687, 10, hud_text);
 }
 
+/// Draws the top-right compass showing current heading direction.
+/// Renders a circle with an arrow indicating which way the drone is facing,
+/// helping players maintain orientation in the 3D world.
 fn drawCompass(yaw: f32) void {
     const cx: i32 = rl.GetScreenWidth() - 60;
     const cy: i32 = 60;
@@ -151,6 +165,9 @@ fn drawCompass(yaw: f32) void {
     rl.DrawCircle(ax, ay, 4, hud_text);
 }
 
+/// Draws a four-band vertical gradient as the sky/ground backdrop.
+/// Creates visual depth by transitioning from sky blue through horizon haze to earth tones,
+/// simulating atmospheric perspective without a skybox.
 fn drawEnvironmentGradient() void {
     const w = rl.GetScreenWidth();
     const h = rl.GetScreenHeight();
@@ -169,21 +186,12 @@ fn drawEnvironmentGradient() void {
     rl.DrawRectangleGradientV(0, half_h + quarter_h, w, quarter_h, ground_mid, ground_bottom);
 }
 
+/// Constrains a position to the valid play area bounds.
+/// Prevents the drone from flying outside the generated world or below minimum altitude.
 fn clampToPlayArea(p: rl.Vector3) rl.Vector3 {
     return .{
         .x = std.math.clamp(p.x, -world_half, world_half),
         .y = @max(p.y, min_altitude),
         .z = std.math.clamp(p.z, -world_half, world_half),
-    };
-}
-
-fn makeTRS(pos: rl.Vector3, yaw: f32, scale: f32) rl.Matrix {
-    const c = @cos(yaw);
-    const s = @sin(yaw);
-    return .{
-        .m0 = scale * c,  .m1 = 0, .m2 = scale * s,  .m3 = 0,
-        .m4 = 0,          .m5 = scale, .m6 = 0,       .m7 = 0,
-        .m8 = scale * -s, .m9 = 0, .m10 = scale * c, .m11 = 0,
-        .m12 = pos.x,     .m13 = pos.y, .m14 = pos.z, .m15 = 1,
     };
 }
