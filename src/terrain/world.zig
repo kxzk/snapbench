@@ -18,17 +18,8 @@ pub fn hashSeed(world_number: u64) u64 {
 /// Height 0 means no terrain (returns 0), height 1+ stacks blocks from y=0.
 pub fn cellTopY(height: u8) f32 {
     if (height == 0) return 0;
-    return @as(f32, @floatFromInt(height - 1)) * BLOCK_SCALE + 1.0;
+    return @as(f32, @floatFromInt(height)) * BLOCK_SCALE;
 }
-
-/// Returns the Y coordinate slightly above the top block for collision purposes.
-/// The 0.5 offset places the collision surface at the top face of the block,
-/// accounting for the block model being centered at its midpoint.
-pub fn cellSurfaceY(height: u8) f32 {
-    if (height == 0) return 0;
-    return @as(f32, @floatFromInt(height - 1)) * BLOCK_SCALE + 0.5;
-}
-
 
 pub const Cell = packed struct {
     height: u8,
@@ -40,6 +31,7 @@ pub const Cell = packed struct {
 pub const World = struct {
     cells: [WORLD_SIZE][WORLD_SIZE]Cell,
     seed: u64,
+    creatures_dirty: bool = false,
 
     /// Procedurally generates an entire world from a seed.
     /// Uses Perlin noise to create "pockets" of elevated terrain, selects block types
@@ -92,31 +84,28 @@ pub const World = struct {
         return world;
     }
 
-    /// Converts grid cell indices to world-space XZ coordinates.
+    /// Converts grid cell indices to world-space XZ coordinates (cell center).
     /// Inverse of collision.worldToGrid. Centers the world around origin (0,0).
     pub fn worldPos(x: usize, z: usize) struct { x: f32, z: f32 } {
         return .{
-            .x = @as(f32, @floatFromInt(x)) * BLOCK_SCALE - WORLD_HALF,
-            .z = @as(f32, @floatFromInt(z)) * BLOCK_SCALE - WORLD_HALF,
+            .x = @as(f32, @floatFromInt(x)) * BLOCK_SCALE - WORLD_HALF + BLOCK_SCALE * 0.5,
+            .z = @as(f32, @floatFromInt(z)) * BLOCK_SCALE - WORLD_HALF + BLOCK_SCALE * 0.5,
         };
+    }
+
+    pub fn removeCreature(self: *World, gx: usize, gz: usize) void {
+        self.cells[gz][gx].creature_type = .none;
+        self.creatures_dirty = true;
     }
 };
 
-/// Selects a block type for elevated terrain based on height and noise.
-/// Lower heights get organic materials (dirt, coal, brick, wood planks),
-/// higher heights get stone-like materials. Adds visual variety without explicit biomes.
-fn selectTerrainBlock(height: u8, x: f32, z: f32, perlin: *const noise.PerlinNoise) catalog.BlockType {
+/// Selects block type for elevated terrain using noise-based variation.
+fn selectTerrainBlock(_: u8, x: f32, z: f32, perlin: *const noise.PerlinNoise) catalog.BlockType {
     const variation = perlin.sample2D(x * cfg.terrain_var_scale + cfg.terrain_var_offset, z * cfg.terrain_var_scale);
-
-    if (height <= 4) {
-        if (variation > 0.3) return .dirt;
-        if (variation > 0.1) return .coal;
-        if (variation > -0.1) return .brick;
-        return .wood_planks;
-    }
-
-    if (variation > 0.1) return .grey_bricks;
-    return .brick;
+    if (variation > 0.3) return .dirt;
+    if (variation > 0.1) return .coal;
+    if (variation > -0.1) return .brick;
+    return .wood_planks;
 }
 
 /// Selects decoration for flat ground-level cells (height=1).

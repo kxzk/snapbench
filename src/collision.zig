@@ -1,7 +1,7 @@
 const world = @import("terrain/world.zig");
 const catalog = @import("assets/catalog.zig");
 
-pub const DRONE_RADIUS: f32 = 1.5;
+pub const DRONE_RADIUS: f32 = 0.0;
 pub const CREATURE_RADIUS: f32 = 1.0;
 pub const CREATURE_HEIGHT: f32 = 2.0;
 
@@ -25,7 +25,7 @@ pub fn worldToGrid(wx: f32, wz: f32) ?struct { x: usize, z: usize } {
 pub fn getBaseTerrainHeight(w: *const world.World, wx: f32, wz: f32) f32 {
     const grid = worldToGrid(wx, wz) orelse return 0;
     const cell = w.cells[grid.z][grid.x];
-    return world.cellSurfaceY(cell.height);
+    return world.cellTopY(cell.height);
 }
 
 /// Returns the effective collision height at a world position, including decoration height.
@@ -33,7 +33,7 @@ pub fn getBaseTerrainHeight(w: *const world.World, wx: f32, wz: f32) f32 {
 pub fn getTerrainHeight(w: *const world.World, wx: f32, wz: f32) f32 {
     const grid = worldToGrid(wx, wz) orelse return 0;
     const cell = w.cells[grid.z][grid.x];
-    return world.cellSurfaceY(cell.height) + catalog.decoHeight(cell.deco_type);
+    return world.cellTopY(cell.height) + catalog.decoHeight(cell.deco_type);
 }
 
 /// Checks if the drone at position (x,y,z) collides with any creature.
@@ -58,20 +58,19 @@ pub fn checkCreatureCollision(w: *const world.World, x: f32, y: f32, z: f32) boo
 pub const Vec3 = struct { x: f32, y: f32, z: f32 };
 
 /// Resolves a proposed movement from current to target position, handling collisions.
-/// First blocks horizontal movement if it would enter terrain/decoration volumes,
-/// then blocks if it would hit creatures, finally enforces minimum floor clearance.
-/// Returns the valid position the drone can actually move to.
+/// Rejects entire move if target hits a creature, then blocks XZ if terrain obstructs,
+/// finally enforces minimum floor clearance. Returns the valid position.
 pub fn resolveMove(w: *const world.World, current: Vec3, target: Vec3) Vec3 {
+    if (checkCreatureCollision(w, target.x, target.y, target.z)) {
+        return current;
+    }
+
     var result = target;
 
     const terrain_with_deco = getTerrainHeight(w, target.x, target.z);
     if (terrain_with_deco > current.y - DRONE_RADIUS) {
         result.x = current.x;
         result.z = current.z;
-    }
-
-    if (checkCreatureCollision(w, result.x, result.y, result.z)) {
-        result = current;
     }
 
     const floor = getBaseTerrainHeight(w, result.x, result.z);

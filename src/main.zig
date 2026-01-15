@@ -25,9 +25,6 @@ fn parseCommand(data: []const u8) Command {
 
 const Directions = struct { forward: rl.Vector3, right: rl.Vector3 };
 
-/// Converts a yaw angle to forward/right direction vectors in the XZ plane.
-/// Used to determine movement directions relative to where the camera is facing,
-/// enabling WASD controls that feel intuitive regardless of current orientation.
 fn yawToDirections(yaw_rad: f32) Directions {
     return .{
         .forward = .{ .x = @sin(yaw_rad), .y = 0, .z = @cos(yaw_rad) },
@@ -35,9 +32,6 @@ fn yawToDirections(yaw_rad: f32) Directions {
     };
 }
 
-/// Processes keyboard input to update the drone's target position and yaw.
-/// Modifies target_pos (not actual position) to allow smooth interpolation in the game loop.
-/// This separation of input-target from rendered-position enables the "floaty" drone feel.
 fn handleInput(target_pos: *rl.Vector3, yaw: *f32, dirs: Directions, dt: f32) void {
     const move_speed: f32 = 30.0;
     const vertical_speed: f32 = 20.0;
@@ -98,6 +92,17 @@ pub fn main() void {
     var render_batch = terrain_renderer.RenderBatch{};
     terrain_renderer.collectBatches(&terrain, &render_batch);
 
+    // Warm-up frame: force GPU to allocate and sync instance buffers before main loop
+    // Prevents black streak artifacts on first camera movement (Metal driver timing issue)
+    rl.BeginDrawing();
+    rl.ClearBackground(rl.BLACK);
+    {
+        rl.BeginMode3D(camera);
+        defer rl.EndMode3D();
+        terrain_renderer.render(&model_cache, &render_batch);
+    }
+    rl.EndDrawing();
+
     var state = game_state.GameState{};
     var server = udp.UdpServer.init() catch |err| {
         std.debug.print("UDP init failed: {}\n", .{err});
@@ -138,11 +143,15 @@ pub fn main() void {
                 &yaw,
                 &terrain,
                 &state,
-                &render_batch,
                 drone_dirs,
                 &response_buf,
             );
             server.send(response, recv.client);
+        }
+
+        if (terrain.creatures_dirty) {
+            terrain_renderer.collectCreatureBatch(&terrain, &render_batch);
+            terrain.creatures_dirty = false;
         }
 
         const updated_yaw_rad = yaw * deg_to_rad;
@@ -191,7 +200,6 @@ fn handleUdpCommand(
     yaw: *f32,
     terrain: *world_mod.World,
     state: *game_state.GameState,
-    render_batch: *terrain_renderer.RenderBatch,
     dirs: Directions,
     buf: *[128]u8,
 ) []const u8 {
@@ -217,7 +225,6 @@ fn handleUdpCommand(
         .rotate_right => yaw.* += udp_rotation,
         .identify => {
             if (game_state.tryIdentify(terrain, state, pos.x, pos.y, pos.z)) {
-                terrain_renderer.collectCreatureBatch(terrain, render_batch);
                 return std.fmt.bufPrint(buf, "OK:identified x={d:.1} y={d:.1} z={d:.1} yaw={d:.1} remaining={d}", .{
                     pos.x,
                     pos.y,
@@ -268,16 +275,11 @@ fn drawDroneInfo(pos: rl.Vector3, state: game_state.GameState, world_number: ?u6
     rl.DrawFPS(20, 137);
 }
 
-/// Draws the bottom-left controls legend showing available keyboard inputs.
-/// Helps players learn the control scheme without external documentation.
 fn drawControls() void {
     rl.DrawRectangle(10, 680, 260, 30, hud_bg);
     rl.DrawText("WASD:Move Q/E:Yaw Space/Shift:Up/Down", 15, 687, 10, hud_text);
 }
 
-/// Draws the top-right compass showing current heading direction.
-/// Renders a circle with an arrow indicating which way the drone is facing,
-/// helping players maintain orientation in the 3D world.
 fn drawCompass(yaw: f32) void {
     const cx: i32 = rl.GetScreenWidth() - 60;
     const cy: i32 = 60;
@@ -291,9 +293,6 @@ fn drawCompass(yaw: f32) void {
     rl.DrawCircle(ax, ay, 4, hud_text);
 }
 
-/// Draws a four-band vertical gradient as the sky/ground backdrop.
-/// Creates visual depth by transitioning from sky blue through horizon haze to earth tones,
-/// simulating atmospheric perspective without a skybox.
 fn drawEnvironmentGradient() void {
     const w = rl.GetScreenWidth();
     const h = rl.GetScreenHeight();

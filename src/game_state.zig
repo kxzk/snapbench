@@ -41,14 +41,13 @@ pub fn tryIdentify(world: *world_mod.World, state: *GameState, drone_x: f32, dro
 }
 
 fn checkAndRemoveCreature(world: *world_mod.World, gx: usize, gz: usize, drone_x: f32, drone_y: f32, drone_z: f32) bool {
-    const cell = &world.cells[gz][gx];
+    const cell = world.cells[gz][gx];
     if (cell.creature_type == .none) return false;
 
     const wpos = world_mod.World.worldPos(gx, gz);
     const half_xz = render_cfg.creature_scale * 0.5 + IDENTIFY_RANGE;
     const base_y = world_mod.cellTopY(cell.height);
 
-    // AABB is intentionally more lenient than collision cylinder - helps LLM positioning
     const in_range = @abs(drone_x - wpos.x) <= half_xz and
         @abs(drone_z - wpos.z) <= half_xz and
         drone_y >= base_y - IDENTIFY_RANGE and
@@ -56,6 +55,6 @@ fn checkAndRemoveCreature(world: *world_mod.World, gx: usize, gz: usize, drone_x
 
     if (!in_range) return false;
 
-    cell.creature_type = .none;
+    world.removeCreature(gx, gz);
     return true;
 }

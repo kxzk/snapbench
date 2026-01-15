@@ -1,69 +1,61 @@
 const rl = @import("../rl.zig");
 const catalog = @import("catalog.zig");
 
-var instancing_shader: ?rl.Shader = null;
+var shader: ?rl.Shader = null;
+var time_loc: c_int = -1;
 
-/// Loads and caches the instancing shader, returning the cached version on subsequent calls.
-/// Sets up shader uniform locations for MVP matrix, per-instance transforms, diffuse color,
-/// and texture sampler. The shader enables hardware instancing for batch rendering.
-fn loadInstancingShader() rl.Shader {
-    if (instancing_shader) |s| return s;
-
-    var shader = rl.LoadShader("assets/shaders/instancing.vs", "assets/shaders/instancing.fs");
-    shader.locs[rl.SHADER_LOC_MATRIX_MVP] = rl.GetShaderLocation(shader, "mvp");
-    shader.locs[rl.SHADER_LOC_MATRIX_MODEL] = rl.GetShaderLocationAttrib(shader, "instanceTransform");
-    shader.locs[rl.SHADER_LOC_COLOR_DIFFUSE] = rl.GetShaderLocation(shader, "colDiffuse");
-    shader.locs[rl.SHADER_LOC_MAP_DIFFUSE] = rl.GetShaderLocation(shader, "texture0");
-    instancing_shader = shader;
-    return shader;
+fn loadShader() rl.Shader {
+    if (shader) |s| return s;
+    var s = rl.LoadShader("assets/shaders/instancing.vs", "assets/shaders/instancing.fs");
+    s.locs[rl.SHADER_LOC_MATRIX_MVP] = rl.GetShaderLocation(s, "mvp");
+    s.locs[rl.SHADER_LOC_MATRIX_MODEL] = rl.GetShaderLocationAttrib(s, "instanceTransform");
+    s.locs[rl.SHADER_LOC_COLOR_DIFFUSE] = rl.GetShaderLocation(s, "colDiffuse");
+    s.locs[rl.SHADER_LOC_MAP_DIFFUSE] = rl.GetShaderLocation(s, "texture0");
+    time_loc = rl.GetShaderLocation(s, "time");
+    shader = s;
+    return s;
 }
 
-/// Replaces all material shaders on a model with the instancing shader.
-/// Must be called after loading each model to enable GPU instanced rendering.
-fn applyInstancingShader(model: *rl.Model) void {
-    const shader = loadInstancingShader();
-    for (model.materials[0..@intCast(model.materialCount)]) |*mat| {
-        mat.shader = shader;
+pub fn setShaderTime(time: f32) void {
+    if (shader) |s| {
+        rl.SetShaderValue(s, time_loc, &time, rl.SHADER_UNIFORM_FLOAT);
     }
 }
 
-/// Caches loaded models by type for efficient lookup during rendering.
-/// Indexed by enum values to avoid hash lookups. Optional slots handle types
-/// without models (air blocks, no decoration/creature).
+fn applyShader(model: *rl.Model, s: rl.Shader) void {
+    for (model.materials[0..@intCast(model.materialCount)]) |*mat| {
+        mat.shader = s;
+    }
+}
+
 pub const ModelCache = struct {
     blocks: [catalog.block_count]?rl.Model = .{null} ** catalog.block_count,
     decos: [catalog.deco_count]?rl.Model = .{null} ** catalog.deco_count,
     creatures: [catalog.creature_count]?rl.Model = .{null} ** catalog.creature_count,
 
-    /// Loads all models from disk and applies the instancing shader to each.
-    /// Uses comptime inline loops to unroll loading; skips types with null paths.
-    /// Call once at startup; models stay loaded for the application lifetime.
     pub fn loadAll(self: *ModelCache) void {
+        const s = loadShader();
+
         inline for (0..catalog.block_count) |i| {
-            const t: catalog.BlockType = @enumFromInt(i);
-            if (catalog.blockPath(t)) |path| {
+            if (catalog.blockPath(@enumFromInt(i))) |path| {
                 self.blocks[i] = rl.LoadModel(path);
-                applyInstancingShader(&self.blocks[i].?);
+                applyShader(&self.blocks[i].?, s);
             }
         }
         inline for (0..catalog.deco_count) |i| {
-            const t: catalog.DecoType = @enumFromInt(i);
-            if (catalog.decoPath(t)) |path| {
+            if (catalog.decoPath(@enumFromInt(i))) |path| {
                 self.decos[i] = rl.LoadModel(path);
-                applyInstancingShader(&self.decos[i].?);
+                applyShader(&self.decos[i].?, s);
             }
         }
         inline for (0..catalog.creature_count) |i| {
-            const t: catalog.CreatureType = @enumFromInt(i);
-            if (catalog.creaturePath(t)) |path| {
+            if (catalog.creaturePath(@enumFromInt(i))) |path| {
                 self.creatures[i] = rl.LoadModel(path);
-                applyInstancingShader(&self.creatures[i].?);
+                applyShader(&self.creatures[i].?, s);
             }
         }
     }
 
-    /// Unloads all cached models and the shared instancing shader.
-    /// Must be called before window close to properly release GPU resources.
     pub fn unloadAll(self: *ModelCache) void {
         inline for (.{ &self.blocks, &self.decos, &self.creatures }) |arr| {
             for (arr) |*slot| if (slot.*) |model| {
@@ -71,9 +63,9 @@ pub const ModelCache = struct {
                 slot.* = null;
             };
         }
-        if (instancing_shader) |s| {
+        if (shader) |s| {
             rl.UnloadShader(s);
-            instancing_shader = null;
+            shader = null;
         }
     }
 };

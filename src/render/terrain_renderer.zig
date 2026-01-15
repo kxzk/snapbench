@@ -6,15 +6,18 @@ const loader = @import("../assets/loader.zig");
 const catalog = @import("../assets/catalog.zig");
 const cfg = @import("../config.zig").render;
 
-/// Comptime-generic transform batch for GPU instancing.
-/// Groups transforms by asset type so each model can be drawn with a single instanced call.
-/// The fixed-size arrays avoid allocations; cfg.max_instances caps memory regardless of world size.
+const identity_matrix = rl.Matrix{
+    .m0 = 1, .m4 = 0, .m8 = 0, .m12 = 0,
+    .m1 = 0, .m5 = 1, .m9 = 0, .m13 = 0,
+    .m2 = 0, .m6 = 0, .m10 = 1, .m14 = 0,
+    .m3 = 0, .m7 = 0, .m11 = 0, .m15 = 1,
+};
+
 fn TransformBatch(comptime count: usize) type {
     return struct {
-        transforms: [count][cfg.max_instances]rl.Matrix = undefined,
+        transforms: [count][cfg.max_instances]rl.Matrix = .{.{identity_matrix} ** cfg.max_instances} ** count,
         counts: [count]usize = .{0} ** count,
 
-        /// Clears all instance counts without deallocating. Called once per frame before collection.
         fn reset(self: *@This()) void {
             self.counts = .{0} ** count;
         }
@@ -35,14 +38,11 @@ const BlockBatch = TransformBatch(catalog.block_count);
 const DecoBatch = TransformBatch(catalog.deco_count);
 const CreatureBatch = TransformBatch(catalog.creature_count);
 
-/// Aggregates all transform batches for a complete frame render.
-/// Separates blocks, decorations, and creatures for independent instanced draws.
 pub const RenderBatch = struct {
     blocks: BlockBatch = .{},
     decos: DecoBatch = .{},
     creatures: CreatureBatch = .{},
 
-    /// Resets all sub-batches. Call at start of frame or when world changes.
     pub fn reset(self: *RenderBatch) void {
         self.blocks.reset();
         self.decos.reset();
@@ -50,10 +50,6 @@ pub const RenderBatch = struct {
     }
 };
 
-
-/// Iterates the entire world grid and collects transform matrices into batches.
-/// For each cell: pushes block transforms for terrain height, then decoration and creature
-/// transforms at the cell top. Only needs to run once unless world changes.
 pub fn collectBatches(w: *const world.World, batch: *RenderBatch) void {
     batch.reset();
 
@@ -67,13 +63,11 @@ pub fn collectBatches(w: *const world.World, batch: *RenderBatch) void {
             const base_z = wpos.z;
             const cell_top_y = world.cellTopY(cell.height);
 
-            if (cell.height == 1) {
-                batch.blocks.push(@intFromEnum(catalog.BlockType.grass), math.matrixScaleTranslate(base_x, 0, base_z, 1.0));
-            } else {
-                for (1..cell.height) |y| {
-                    const block_y = @as(f32, @floatFromInt(y)) * world.BLOCK_SCALE;
-                    batch.blocks.push(@intFromEnum(cell.block_type), math.matrixScaleTranslate(base_x, block_y, base_z, 1.0));
-                }
+            const block_y_offset = world.BLOCK_SCALE * 0.5;
+            batch.blocks.push(@intFromEnum(catalog.BlockType.grass), math.matrixScaleTranslate(base_x, block_y_offset, base_z, 1.0));
+            for (1..cell.height) |y| {
+                const block_y = @as(f32, @floatFromInt(y)) * world.BLOCK_SCALE + block_y_offset;
+                batch.blocks.push(@intFromEnum(cell.block_type), math.matrixScaleTranslate(base_x, block_y, base_z, 1.0));
             }
 
             if (cell.deco_type != .none) {
@@ -89,7 +83,6 @@ pub fn collectBatches(w: *const world.World, batch: *RenderBatch) void {
     }
 }
 
-/// Rebuilds only the creature batch. Use after creature removal instead of full collectBatches.
 pub fn collectCreatureBatch(w: *const world.World, batch: *RenderBatch) void {
     batch.creatures.reset();
 
@@ -105,10 +98,9 @@ pub fn collectCreatureBatch(w: *const world.World, batch: *RenderBatch) void {
     }
 }
 
-/// Draws all batched instances using GPU instancing. One draw call per unique model.
-/// Iterates block types, then decoration types, then creature types, drawing each
-/// with their collected transforms. Skips types with zero instances or unloaded models.
 pub fn render(cache: *const loader.ModelCache, batch: *const RenderBatch) void {
+    loader.setShaderTime(0);
+
     for (0..catalog.block_count) |i| {
         const count = batch.blocks.counts[i];
         if (count > 0 and cache.blocks[i] != null) {
@@ -123,6 +115,8 @@ pub fn render(cache: *const loader.ModelCache, batch: *const RenderBatch) void {
         }
     }
 
+    loader.setShaderTime(@floatCast(rl.GetTime()));
+
     for (0..catalog.creature_count) |i| {
         const count = batch.creatures.counts[i];
         if (count > 0 and cache.creatures[i] != null) {
@@ -131,9 +125,6 @@ pub fn render(cache: *const loader.ModelCache, batch: *const RenderBatch) void {
     }
 }
 
-/// Draws all meshes of a model using GPU instancing with the given transforms.
-/// Iterates each mesh in the model and issues a single DrawMeshInstanced call per mesh.
-/// This is the hot path - minimizing draw calls is critical for performance.
 fn drawModelInstanced(model: rl.Model, transforms: *const [cfg.max_instances]rl.Matrix, count: usize) void {
     const mesh_count: usize = @intCast(model.meshCount);
     for (0..mesh_count) |mi| {
