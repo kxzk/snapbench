@@ -1,7 +1,7 @@
 const world = @import("terrain/world.zig");
 const catalog = @import("assets/catalog.zig");
 
-pub const DRONE_RADIUS: f32 = 0.0;
+pub const DRONE_RADIUS: f32 = 0.75;
 pub const CREATURE_RADIUS: f32 = 1.0;
 pub const CREATURE_HEIGHT: f32 = 2.0;
 
