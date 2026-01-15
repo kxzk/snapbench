@@ -5,10 +5,23 @@ const world_mod = @import("terrain/world.zig");
 const terrain_renderer = @import("render/terrain_renderer.zig");
 const loader = @import("assets/loader.zig");
 const collision = @import("collision.zig");
+const udp = @import("udp.zig");
+const game_state = @import("game_state.zig");
 
 const deg_to_rad = std.math.pi / 180.0;
 const min_altitude: f32 = 1.0;
 const world_half = world_mod.WORLD_HALF;
+
+const udp_horizontal: f32 = 3.0;
+const udp_vertical: f32 = 2.0;
+const udp_rotation: f32 = 15.0;
+
+const Command = enum { forward, backward, left, right, up, down, rotate_left, rotate_right, identify, unknown };
+
+fn parseCommand(data: []const u8) Command {
+    const trimmed = std.mem.trimRight(u8, data, &.{ '\n', '\r', ' ' });
+    return std.meta.stringToEnum(Command, trimmed) orelse .unknown;
+}
 
 const Directions = struct { forward: rl.Vector3, right: rl.Vector3 };
 
@@ -59,9 +72,18 @@ pub fn main() void {
     model_cache.loadAll();
     defer model_cache.unloadAll();
 
-    const terrain = world_mod.World.generate(@intCast(@as(u64, @bitCast(std.time.timestamp()))));
+    var terrain = world_mod.World.generate(@intCast(@as(u64, @bitCast(std.time.timestamp()))));
     var render_batch = terrain_renderer.RenderBatch{};
     terrain_renderer.collectBatches(&terrain, &render_batch);
+
+    var state = game_state.GameState{};
+    var server = udp.UdpServer.init() catch |err| {
+        std.debug.print("UDP init failed: {}\n", .{err});
+        return;
+    };
+    defer server.deinit();
+    var cmd_buf: [256]u8 = undefined;
+    var response_buf: [128]u8 = undefined;
 
     var pos = rl.Vector3{ .x = 0, .y = 20, .z = 0 };
     var yaw: f32 = 0;
@@ -82,8 +104,27 @@ pub fn main() void {
             .right = dirs.right,
         };
 
-        handleInput(&target_pos, &yaw, drone_dirs, dt);
+        if (!state.game_over) {
+            handleInput(&target_pos, &yaw, drone_dirs, dt);
+        }
+
+        if (server.tryRecv(&cmd_buf)) |recv| {
+            const response = handleUdpCommand(
+                parseCommand(recv.data),
+                &target_pos,
+                pos,
+                &yaw,
+                &terrain,
+                &state,
+                &render_batch,
+                drone_dirs,
+                &response_buf,
+            );
+            server.send(response, recv.client);
+        }
+
         const updated_yaw_rad = yaw * deg_to_rad;
+        const updated_dirs = yawToDirections(updated_yaw_rad);
 
         const resolved = collision.resolveMove(
             &terrain,
@@ -97,7 +138,7 @@ pub fn main() void {
 
         model.transform = math.matrixTRS(pos, updated_yaw_rad, 5.0);
 
-        const cam_offset = rl.Vector3{ .x = -dirs.forward.x * 25, .y = 12, .z = dirs.forward.z * 25 };
+        const cam_offset = rl.Vector3{ .x = -updated_dirs.forward.x * 25, .y = 12, .z = updated_dirs.forward.z * 25 };
         camera.position = rl.Vector3Add(pos, cam_offset);
         camera.target = pos;
 
@@ -116,30 +157,88 @@ pub fn main() void {
             rl.DrawModel(model, .{ .x = 0, .y = 0, .z = 0 }, 1.0, .{ .r = 255, .g = 255, .b = 255, .a = 255 });
         }
 
-        drawHUD(pos, yaw);
+        drawHUD(pos, yaw, state);
+        if (state.game_over) drawGameOver();
     }
+}
+
+fn handleUdpCommand(
+    cmd: Command,
+    target_pos: *rl.Vector3,
+    pos: rl.Vector3,
+    yaw: *f32,
+    terrain: *world_mod.World,
+    state: *game_state.GameState,
+    render_batch: *terrain_renderer.RenderBatch,
+    dirs: Directions,
+    buf: *[128]u8,
+) []const u8 {
+    if (cmd == .unknown) return "FAIL:unknown_command";
+
+    if (state.game_over) {
+        return std.fmt.bufPrint(buf, "OK x={d:.1} y={d:.1} z={d:.1} yaw={d:.1}", .{
+            pos.x,
+            pos.y,
+            pos.z,
+            yaw.*,
+        }) catch "ERR";
+    }
+
+    switch (cmd) {
+        .forward => target_pos.* = rl.Vector3Add(target_pos.*, rl.Vector3Scale(dirs.forward, udp_horizontal)),
+        .backward => target_pos.* = rl.Vector3Add(target_pos.*, rl.Vector3Scale(dirs.forward, -udp_horizontal)),
+        .left => target_pos.* = rl.Vector3Add(target_pos.*, rl.Vector3Scale(dirs.right, -udp_horizontal)),
+        .right => target_pos.* = rl.Vector3Add(target_pos.*, rl.Vector3Scale(dirs.right, udp_horizontal)),
+        .up => target_pos.y += udp_vertical,
+        .down => target_pos.y -= udp_vertical,
+        .rotate_left => yaw.* -= udp_rotation,
+        .rotate_right => yaw.* += udp_rotation,
+        .identify => {
+            if (game_state.tryIdentify(terrain, state, pos.x, pos.y, pos.z)) {
+                terrain_renderer.collectCreatureBatch(terrain, render_batch);
+                return std.fmt.bufPrint(buf, "OK:identified x={d:.1} y={d:.1} z={d:.1} yaw={d:.1} remaining={d}", .{
+                    pos.x,
+                    pos.y,
+                    pos.z,
+                    yaw.*,
+                    state.remaining(),
+                }) catch "ERR";
+            }
+            return std.fmt.bufPrint(buf, "FAIL:no_creature_in_range x={d:.1} y={d:.1} z={d:.1} yaw={d:.1}", .{
+                pos.x,
+                pos.y,
+                pos.z,
+                yaw.*,
+            }) catch "ERR";
+        },
+        .unknown => unreachable,
+    }
+
+    return std.fmt.bufPrint(buf, "OK x={d:.1} y={d:.1} z={d:.1} yaw={d:.1}", .{
+        target_pos.x,
+        target_pos.y,
+        target_pos.z,
+        yaw.*,
+    }) catch "ERR";
 }
 
 const hud_bg = rl.Color{ .r = 255, .g = 255, .b = 255, .a = 120 };
 const hud_text = rl.Color{ .r = 40, .g = 40, .b = 40, .a = 255 };
 
-/// Renders all HUD elements: drone info panel, controls legend, and compass.
-/// Orchestrates the individual HUD component draws.
-fn drawHUD(pos: rl.Vector3, yaw: f32) void {
-    drawDroneInfo(pos);
+fn drawHUD(pos: rl.Vector3, yaw: f32, state: game_state.GameState) void {
+    drawDroneInfo(pos, state);
     drawControls();
     drawCompass(yaw);
 }
 
-/// Draws the top-left info panel showing drone XYZ coordinates and FPS counter.
-/// Provides real-time telemetry for debugging and gameplay awareness.
-fn drawDroneInfo(pos: rl.Vector3) void {
-    rl.DrawRectangle(10, 10, 180, 110, hud_bg);
+fn drawDroneInfo(pos: rl.Vector3, state: game_state.GameState) void {
+    rl.DrawRectangle(10, 10, 180, 130, hud_bg);
     rl.DrawText("DRONE", 20, 15, 14, hud_text);
     rl.DrawText(rl.TextFormat("X: %.1f", pos.x), 20, 35, 16, hud_text);
     rl.DrawText(rl.TextFormat("Y: %.1f", pos.y), 20, 55, 16, hud_text);
     rl.DrawText(rl.TextFormat("Z: %.1f", pos.z), 20, 75, 16, hud_text);
-    rl.DrawFPS(20, 97);
+    rl.DrawText(rl.TextFormat("Creatures: %d/%d", state.creatures_found, game_state.TOTAL_CREATURES), 20, 95, 16, hud_text);
+    rl.DrawFPS(20, 117);
 }
 
 /// Draws the bottom-left controls legend showing available keyboard inputs.
@@ -186,12 +285,20 @@ fn drawEnvironmentGradient() void {
     rl.DrawRectangleGradientV(0, half_h + quarter_h, w, quarter_h, ground_mid, ground_bottom);
 }
 
-/// Constrains a position to the valid play area bounds.
-/// Prevents the drone from flying outside the generated world or below minimum altitude.
 fn clampToPlayArea(p: rl.Vector3) rl.Vector3 {
     return .{
         .x = std.math.clamp(p.x, -world_half, world_half),
         .y = @max(p.y, min_altitude),
         .z = std.math.clamp(p.z, -world_half, world_half),
     };
+}
+
+fn drawGameOver() void {
+    const w = rl.GetScreenWidth();
+    const h = rl.GetScreenHeight();
+    rl.DrawRectangle(0, 0, w, h, rl.Color{ .r = 0, .g = 0, .b = 0, .a = 180 });
+    const text = "ALL CREATURES FOUND";
+    const font_size: i32 = 40;
+    const text_width = rl.MeasureText(text, font_size);
+    rl.DrawText(text, @divTrunc(w - text_width, 2), @divTrunc(h, 2) - 20, font_size, rl.WHITE);
 }

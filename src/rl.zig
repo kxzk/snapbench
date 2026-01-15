@@ -44,6 +44,7 @@ pub const EndMode3D = c.EndMode3D;
 pub const ClearBackground = c.ClearBackground;
 pub const DrawFPS = c.DrawFPS;
 pub const DrawText = c.DrawText;
+pub const MeasureText = c.MeasureText;
 pub const DrawRectangle = c.DrawRectangle;
 pub const DrawRectangleGradientV = c.DrawRectangleGradientV;
 pub const DrawLine = c.DrawLine;

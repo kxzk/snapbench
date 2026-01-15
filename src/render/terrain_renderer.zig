@@ -19,13 +19,14 @@ fn TransformBatch(comptime count: usize) type {
             self.counts = .{0} ** count;
         }
 
-        /// Adds a transform matrix for the given asset type. Silently drops if at capacity.
         fn push(self: *@This(), type_id: usize, transform: rl.Matrix) void {
             const idx = self.counts[type_id];
-            if (idx < cfg.max_instances) {
-                self.transforms[type_id][idx] = transform;
-                self.counts[type_id] = idx + 1;
+            if (idx >= cfg.max_instances) {
+                std.log.warn("Instance overflow for type {d}, dropping", .{type_id});
+                return;
             }
+            self.transforms[type_id][idx] = transform;
+            self.counts[type_id] = idx + 1;
         }
     };
 }
@@ -84,6 +85,22 @@ pub fn collectBatches(w: *const world.World, batch: *RenderBatch) void {
                 const transform = math.matrixScaleTranslate(base_x, cell_top_y, base_z, cfg.creature_scale);
                 batch.creatures.push(@intFromEnum(cell.creature_type), transform);
             }
+        }
+    }
+}
+
+/// Rebuilds only the creature batch. Use after creature removal instead of full collectBatches.
+pub fn collectCreatureBatch(w: *const world.World, batch: *RenderBatch) void {
+    batch.creatures.reset();
+
+    for (0..world.WORLD_SIZE) |z| {
+        for (0..world.WORLD_SIZE) |x| {
+            const cell = w.cells[z][x];
+            if (cell.creature_type == .none) continue;
+
+            const wpos = world.World.worldPos(x, z);
+            const transform = math.matrixScaleTranslate(wpos.x, world.cellTopY(cell.height), wpos.z, cfg.creature_scale);
+            batch.creatures.push(@intFromEnum(cell.creature_type), transform);
         }
     }
 }
