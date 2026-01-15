@@ -25,7 +25,6 @@ pub const DecoType = enum(u8) {
 pub const CreatureType = enum(u8) {
     none = 0,
     cat,
-    chicken,
     dog,
     horse,
     pig,
@@ -70,7 +69,6 @@ pub fn creaturePath(t: CreatureType) ?[:0]const u8 {
     return switch (t) {
         .none => null,
         .cat => "assets/cat.glb",
-        .chicken => "assets/chicken.glb",
         .dog => "assets/dog.glb",
         .horse => "assets/horse.glb",
         .pig => "assets/pig.glb",
