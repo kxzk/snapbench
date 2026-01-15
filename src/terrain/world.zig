@@ -7,6 +7,12 @@ pub const WORLD_SIZE: usize = cfg.world_size;
 pub const BLOCK_SCALE: f32 = cfg.block_scale;
 pub const WORLD_HALF: f32 = @as(f32, @floatFromInt(WORLD_SIZE)) * BLOCK_SCALE * 0.5;
 
+const WYHASH_SEED_SALT = 0x517cc1b727220a95; // Arbitrary but fixed for world compatibility
+
+pub fn hashSeed(world_number: u64) u64 {
+    return std.hash.Wyhash.hash(WYHASH_SEED_SALT, std.mem.asBytes(&world_number));
+}
+
 /// Returns the Y coordinate of the top surface of a terrain stack.
 /// Used for placing creatures and decorations on top of terrain blocks.
 /// Height 0 means no terrain (returns 0), height 1+ stacks blocks from y=0.
@@ -40,9 +46,9 @@ pub const World = struct {
     /// based on height and noise variation, places decorations, then spawns creatures.
     /// The seed ensures reproducible worlds for testing and sharing.
     pub fn generate(seed: u64) World {
-        var prng = std.Random.DefaultPrng.init(seed);
+        var prng = std.Random.Xoshiro256.init(seed);
         const rand = prng.random();
-        const perlin = noise.PerlinNoise.init(seed);
+        const perlin = noise.PerlinNoise.init(hashSeed(seed));
 
         var world: World = undefined;
         world.seed = seed;

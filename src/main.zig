@@ -53,7 +53,29 @@ fn handleInput(target_pos: *rl.Vector3, yaw: *f32, dirs: Directions, dt: f32) vo
     if (rl.IsKeyDown(rl.KEY_E)) yaw.* += yaw_speed * dt;
 }
 
+const WorldSeed = struct {
+    number: ?u64,
+    hash: u64,
+};
+
+fn parseWorldSeed() WorldSeed {
+    var args = std.process.args();
+    _ = args.skip();
+    if (args.next()) |arg| {
+        if (std.fmt.parseInt(u64, arg, 10)) |num| {
+            return .{ .number = num, .hash = world_mod.hashSeed(num) };
+        } else |_| {
+            std.debug.print("Warning: Invalid seed '{s}', using random\n", .{arg});
+        }
+    }
+    // nanoTimestamp: 1-second resolution would cause collisions in rapid re-runs
+    const ns: u64 = @truncate(@as(u128, @bitCast(std.time.nanoTimestamp())));
+    return .{ .number = null, .hash = world_mod.hashSeed(ns) };
+}
+
 pub fn main() void {
+    const world_seed = parseWorldSeed();
+
     rl.InitWindow(1280, 720, "SnapBench");
     defer rl.CloseWindow();
 
@@ -72,7 +94,7 @@ pub fn main() void {
     model_cache.loadAll();
     defer model_cache.unloadAll();
 
-    var terrain = world_mod.World.generate(@intCast(@as(u64, @bitCast(std.time.timestamp()))));
+    var terrain = world_mod.World.generate(world_seed.hash);
     var render_batch = terrain_renderer.RenderBatch{};
     terrain_renderer.collectBatches(&terrain, &render_batch);
 
@@ -157,7 +179,7 @@ pub fn main() void {
             rl.DrawModel(model, .{ .x = 0, .y = 0, .z = 0 }, 1.0, .{ .r = 255, .g = 255, .b = 255, .a = 255 });
         }
 
-        drawHUD(pos, yaw, state);
+        drawHUD(pos, yaw, state, world_seed.number);
         if (state.game_over) drawGameOver();
     }
 }
@@ -225,20 +247,25 @@ fn handleUdpCommand(
 const hud_bg = rl.Color{ .r = 255, .g = 255, .b = 255, .a = 120 };
 const hud_text = rl.Color{ .r = 40, .g = 40, .b = 40, .a = 255 };
 
-fn drawHUD(pos: rl.Vector3, yaw: f32, state: game_state.GameState) void {
-    drawDroneInfo(pos, state);
+fn drawHUD(pos: rl.Vector3, yaw: f32, state: game_state.GameState, world_number: ?u64) void {
+    drawDroneInfo(pos, state, world_number);
     drawControls();
     drawCompass(yaw);
 }
 
-fn drawDroneInfo(pos: rl.Vector3, state: game_state.GameState) void {
-    rl.DrawRectangle(10, 10, 180, 130, hud_bg);
+fn drawDroneInfo(pos: rl.Vector3, state: game_state.GameState, world_number: ?u64) void {
+    rl.DrawRectangle(10, 10, 180, 150, hud_bg);
     rl.DrawText("DRONE", 20, 15, 14, hud_text);
     rl.DrawText(rl.TextFormat("X: %.1f", pos.x), 20, 35, 16, hud_text);
     rl.DrawText(rl.TextFormat("Y: %.1f", pos.y), 20, 55, 16, hud_text);
     rl.DrawText(rl.TextFormat("Z: %.1f", pos.z), 20, 75, 16, hud_text);
     rl.DrawText(rl.TextFormat("Creatures: %d/%d", state.creatures_found, game_state.TOTAL_CREATURES), 20, 95, 16, hud_text);
-    rl.DrawFPS(20, 117);
+    if (world_number) |num| {
+        rl.DrawText(rl.TextFormat("World: %d", num), 20, 115, 16, hud_text);
+    } else {
+        rl.DrawText("World: random", 20, 115, 16, hud_text);
+    }
+    rl.DrawFPS(20, 137);
 }
 
 /// Draws the bottom-left controls legend showing available keyboard inputs.

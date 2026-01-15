@@ -1,3 +1,4 @@
+// Offsets separate noise sample domains to avoid correlation between terrain features
 pub const WorldConfig = struct {
     pocket_scale: f32 = 0.08,
     pocket_offset: f32 = 500.0,

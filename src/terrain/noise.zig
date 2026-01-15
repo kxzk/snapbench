@@ -29,7 +29,7 @@ pub const PerlinNoise = struct {
     /// The 512-entry table (256 values doubled) avoids modulo in lookups.
     /// Seeding ensures reproducible noise for the same world seed.
     pub fn init(seed: u64) PerlinNoise {
-        var rng = std.Random.DefaultPrng.init(seed);
+        var rng = std.Random.Xoshiro256.init(seed);
         const random = rng.random();
 
         var p: [256]u8 = undefined;
