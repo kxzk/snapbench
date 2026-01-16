@@ -2,3 +2,6 @@
 zig-out/
 .claude
 drone_control
+
+# Rust
+llm_drone/target/

@@ -75,3 +75,4 @@ pub const SHADER_LOC_MAP_DIFFUSE = c.SHADER_LOC_MAP_DIFFUSE;
 pub const SHADER_UNIFORM_FLOAT = c.SHADER_UNIFORM_FLOAT;
 pub const GetTime = c.GetTime;
 pub const SetShaderValue = c.SetShaderValue;
+pub const TakeScreenshot = c.TakeScreenshot;

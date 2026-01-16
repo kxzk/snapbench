@@ -16,7 +16,7 @@ const udp_horizontal: f32 = 3.0;
 const udp_vertical: f32 = 2.0;
 const udp_rotation: f32 = 15.0;
 
-const Command = enum { forward, backward, left, right, up, down, rotate_left, rotate_right, identify, unknown };
+const Command = enum { forward, backward, left, right, up, down, rotate_left, rotate_right, identify, screenshot, unknown };
 
 fn parseCommand(data: []const u8) Command {
     const trimmed = std.mem.trimRight(u8, data, &.{ '\n', '\r', ' ' });
@@ -239,6 +239,10 @@ fn handleUdpCommand(
                 pos.z,
                 yaw.*,
             }) catch "ERR";
+        },
+        .screenshot => {
+            rl.TakeScreenshot("screenshot.png");
+            return "OK:screenshot";
         },
         .unknown => unreachable,
     }
