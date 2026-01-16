@@ -1,28 +1,30 @@
 <h3 align="center">SnapBench</h3>
 
-> Inspired by [Pokémon Snap](https://en.wikipedia.org/wiki/Pok%C3%A9mon_Snap) (1999).
+> A VLM pilots a drone through a 3D world to locate and identify creatures. Inspired by [Pokémon Snap](https://en.wikipedia.org/wiki/Pok%C3%A9mon_Snap) (1999).
 
-![zig](https://img.shields.io/badge/zig-black?style=flat-square&logo=zig)
-![rust](https://img.shields.io/badge/rust-%23CE422B?style=flat-square&logo=rust)
+<p align="center">
+<img src="https://img.shields.io/badge/zig-black?style=flat-square&logo=zig" alt="zig">
+<img src="https://img.shields.io/badge/rust-%23CE422B?style=flat-square&logo=rust" alt="rust">
+</p>
 
-<br>
-
-```
-Premise: Simulate world. Fly drone. Benchmark LLM.
-```
 
 ![preview](./images/preview.png)
 
-### OpenRouter
+### Architecture
 
-> Top weekly models for input modality = image [here](https://openrouter.ai/models?fmt=cards&input_modalities=image&order=top-weekly)
+```mermaid
+graph TD
+    VLM[VLM<br><sub>OpenRouter</sub>]
+    SIM[Simulation<br><sub>Zig/raylib</sub>]
+    CTL[Controller<br><sub>Rust</sub>]
 
-<br>
+    VLM <-->|screenshot + prompt| CTL
+    SIM <-->|cmds + state<br>UDP:9999| CTL
+```
 
-### Maybe Use
+**Simulation** — Procedural terrain, spawned animals (cat/dog/pig/sheep), drone physics, collision detection. Accepts 8 movement commands + `identify` + `screenshot`.
 
-* [raylib](https://github.com/raysan5/raylib)
-* [openrouter-rs](https://github.com/realmorrisliu/openrouter-rs)
+**Controller** — Captures frames, builds prompts with position/state, parses VLM responses into command sequences.
 
-<br>
+**Task** — Find and identify 3 creatures. `identify` succeeds within 5 units of a creature.
 
