@@ -42,7 +42,7 @@ fn handleInput(target_pos: *rl.Vector3, yaw: *f32, dirs: Directions, dt: f32) vo
     if (rl.IsKeyDown(rl.KEY_A) or rl.IsKeyDown(rl.KEY_LEFT)) target_pos.* = rl.Vector3Add(target_pos.*, rl.Vector3Scale(dirs.right, -move_speed * dt));
     if (rl.IsKeyDown(rl.KEY_D) or rl.IsKeyDown(rl.KEY_RIGHT)) target_pos.* = rl.Vector3Add(target_pos.*, rl.Vector3Scale(dirs.right, move_speed * dt));
     if (rl.IsKeyDown(rl.KEY_SPACE)) target_pos.y += vertical_speed * dt;
-    if (rl.IsKeyDown(rl.KEY_LEFT_SHIFT)) target_pos.y -= vertical_speed * dt;
+    if (rl.IsKeyDown(rl.KEY_LEFT_SHIFT) and !rl.IsKeyDown(rl.KEY_LEFT_SUPER)) target_pos.y -= vertical_speed * dt;
     if (rl.IsKeyDown(rl.KEY_Q)) yaw.* -= yaw_speed * dt;
     if (rl.IsKeyDown(rl.KEY_E)) yaw.* += yaw_speed * dt;
 }

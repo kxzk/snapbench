@@ -25,7 +25,7 @@ pub const WorldConfig = struct {
 
 pub const RenderConfig = struct {
     deco_scale: f32 = 0.8,
-    creature_scale: f32 = 2.0,
+    creature_scale: f32 = 3.0,
     max_instances: usize = 8192,
 };
 

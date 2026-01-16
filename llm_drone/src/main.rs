@@ -4,18 +4,37 @@ use serde::{Deserialize, Serialize};
 use std::net::UdpSocket;
 use std::time::Duration;
 
-const SYSTEM_PROMPT: &str = r#"You pilot a drone finding 3 creatures in a 3D world.
+const SYSTEM_PROMPT: &str = r#"
+You pilot a drone hunting 3 creatures in a 64x64x64 world.
 
-Commands: forward, backward, left, right, up, down, rotate_left, rotate_right, identify
+COMMANDS: forward, backward, left, right, up, down, rotate_left, rotate_right, identify
 
-Rules:
-- identify works within 5 units of creature
-- World is 128x128 units, start at (0, 20, 0)
-- Creatures are animals (cats, dogs, pigs, sheep) on terrain
-- Look for distinct shapes against grass/terrain
+VISUAL TARGETS:
+- Blocky animal shapes: pink pigs, white sheep, brown dogs, orange cats
+- They glow faintly and contrast against green/brown terrain
+- Identify only when creature is centered and close (appears large)
 
-Respond with ONLY a JSON array of 1-5 commands.
-Example: ["forward", "rotate_right", "forward", "identify"]"#;
+NAVIGATION:
+- yaw: 0=+Z, 90=+X, 180=-Z, 270=-X
+- Stay at altitude 15-25 for best ground visibility
+- Near edges (x or z < 5 or > 59): rotate toward center before moving
+
+SEARCH PATTERN:
+- Sweep systematically — don't wander randomly
+- After hitting an edge: rotate 90°, step sideways, rotate 90°, continue opposite direction
+
+FAILED IDENTIFICATION:
+- If identify fails on a visible creature, you're too far — move forward and try again
+- Still failing? Get MUCH closer — you may need to be nearly touching it (creature fills most of frame)
+- Lower altitude (down) if needed to match creature height, then continue approaching
+- Don't abandon a spotted creature until identified or confirmed gone
+
+Before answering, silently consider:
+1. Do I see a creature shape? Where in frame?
+2. Am I near an edge? Which direction is center?
+3. What heading covers unexplored terrain?
+
+Respond with ONLY a JSON array of 1-5 commands."#;
 
 #[derive(Default)]
 struct DroneState {
@@ -25,9 +44,28 @@ struct DroneState {
     yaw: f32,
     creatures_found: u8,
     game_over: bool,
+    recent_commands: Vec<Vec<String>>,
 }
 
 impl DroneState {
+    fn push_commands(&mut self, commands: Vec<String>) {
+        if self.recent_commands.len() >= 3 {
+            self.recent_commands.remove(0);
+        }
+        self.recent_commands.push(commands);
+    }
+
+    fn format_history(&self) -> String {
+        if self.recent_commands.is_empty() {
+            return "none".into();
+        }
+        self.recent_commands
+            .iter()
+            .map(|cmds| format!("{cmds:?}"))
+            .collect::<Vec<_>>()
+            .join(" → ")
+    }
+
     fn update(&mut self, response: &str) {
         if response.contains("ALL CREATURES FOUND") || self.creatures_found >= 3 {
             self.game_over = true;
@@ -35,19 +73,17 @@ impl DroneState {
         }
 
         for part in response.split_whitespace() {
-            if let Some(val) = part.strip_prefix("x=") {
-                self.x = val.parse().unwrap_or(self.x);
-            } else if let Some(val) = part.strip_prefix("y=") {
-                self.y = val.parse().unwrap_or(self.y);
-            } else if let Some(val) = part.strip_prefix("z=") {
-                self.z = val.parse().unwrap_or(self.z);
-            } else if let Some(val) = part.strip_prefix("yaw=") {
-                self.yaw = val.parse().unwrap_or(self.yaw);
-            } else if let Some(val) = part.strip_prefix("remaining=") {
-                if let Ok(remaining) = val.parse::<u8>() {
-                    self.creatures_found = 3 - remaining;
+            let parsed = match part.split_once('=') {
+                Some(("x", v)) => v.parse().ok().map(|n| self.x = n),
+                Some(("y", v)) => v.parse().ok().map(|n| self.y = n),
+                Some(("z", v)) => v.parse().ok().map(|n| self.z = n),
+                Some(("yaw", v)) => v.parse().ok().map(|n| self.yaw = n),
+                Some(("remaining", v)) => {
+                    v.parse::<u8>().ok().map(|n| self.creatures_found = 3 - n)
                 }
-            }
+                _ => None,
+            };
+            let _ = parsed;
         }
 
         if response.starts_with("OK:identified") {
@@ -115,14 +151,27 @@ fn send_command(socket: &UdpSocket, cmd: &str) -> Result<String> {
     Ok(String::from_utf8_lossy(&buf[..n]).to_string())
 }
 
-async fn call_llm(client: &reqwest::Client, api_key: &str, image_b64: &str, state: &DroneState) -> Result<Vec<String>> {
+async fn call_llm(
+    client: &reqwest::Client,
+    api_key: &str,
+    image_b64: &str,
+    state: &DroneState,
+) -> Result<Vec<String>> {
     let user_content = format!(
-        "Position: x={:.1} y={:.1} z={:.1} yaw={:.1}\nCreatures found: {}/3\n\nWhat commands should I execute?",
-        state.x, state.y, state.z, state.yaw, state.creatures_found
+        "Position: x={:.1} y={:.1} z={:.1} yaw={:.1}\n\
+         Creatures found: {}/3\n\
+         Recent commands: {}\n\n\
+         What commands should I execute?",
+        state.x,
+        state.y,
+        state.z,
+        state.yaw,
+        state.creatures_found,
+        state.format_history()
     );
 
     let request = ChatRequest {
-        model: "anthropic/claude-haiku-4.5",
+        model: "google/gemini-3-flash-preview",
         messages: vec![
             Message {
                 role: "system",
@@ -170,7 +219,8 @@ async fn call_llm(client: &reqwest::Client, api_key: &str, image_b64: &str, stat
     let json_end = content.rfind(']').map(|i| i + 1).unwrap_or(content.len());
     let json_str = &content[json_start..json_end];
 
-    let commands: Vec<String> = serde_json::from_str(json_str).unwrap_or_else(|_| vec!["forward".to_string()]);
+    let commands: Vec<String> =
+        serde_json::from_str(json_str).unwrap_or_else(|_| vec!["forward".to_string()]);
 
     Ok(commands)
 }
@@ -203,18 +253,23 @@ async fn main() -> Result<()> {
         let commands = call_llm(&client, &api_key, &b64, &state).await?;
         println!("Executing: {:?}", commands);
 
+        state.push_commands(commands.clone());
+
         for cmd in commands {
             let resp = send_command(&socket, &cmd)?;
             println!("  {} -> {}", cmd, resp);
             state.update(&resp);
 
             if state.game_over {
-                println!("Game complete! Found all {} creatures.", state.creatures_found);
+                println!(
+                    "Game complete! Found all {} creatures.",
+                    state.creatures_found
+                );
                 return Ok(());
             }
         }
 
         println!("---");
-        tokio::time::sleep(Duration::from_secs(5)).await;
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
 }

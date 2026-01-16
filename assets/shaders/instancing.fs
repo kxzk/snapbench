@@ -16,6 +16,6 @@ void main() {
     vec4 texel = texture(texture0, fragTexCoord);
     vec3 lit = texel.rgb * colDiffuse.rgb * lighting;
 
-    float glow = (time > 0.0) ? 0.5 + 0.3 * sin(time * 3.0) : 0.0; // pulses [0.2, 0.8], time <= 0 disables
+    float glow = (time > 0.0) ? 0.8 : 0.0;
     finalColor = vec4(lit + texel.rgb * glow, texel.a * colDiffuse.a);
 }

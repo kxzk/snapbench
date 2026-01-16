@@ -28,6 +28,7 @@ pub const KEY_LEFT = c.KEY_LEFT;
 pub const KEY_RIGHT = c.KEY_RIGHT;
 pub const KEY_SPACE = c.KEY_SPACE;
 pub const KEY_LEFT_SHIFT = c.KEY_LEFT_SHIFT;
+pub const KEY_LEFT_SUPER = c.KEY_LEFT_SUPER;
 
 pub const InitWindow = c.InitWindow;
 pub const CloseWindow = c.CloseWindow;

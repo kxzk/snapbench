@@ -13,10 +13,10 @@ help:
 	@echo ""
 
 sim: ## build and run the simulation
-	zig build run
+	zig build run -- 24
 
 drone: ## build and run the LLM-driven drone controller
-	cd llm_drone && cargo run --release
+	cargo run --release --manifest-path llm_drone/Cargo.toml
 
 clean: ## remove build artifacts
 	rm -rf zig-out .zig-cache drone_control llm_drone/target
