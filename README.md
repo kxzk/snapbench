@@ -4,7 +4,7 @@
 >
 > Inspired by [Pokémon Snap](https://en.wikipedia.org/wiki/Pok%C3%A9mon_Snap) (1999).
 
-<p><img src="https://img.shields.io/badge/zig-black?style=flat-square&logo=zig" alt="zig"> <img src="https://img.shields.io/badge/rust-%23CE422B?style=flat-square&logo=rust" alt="rust"></p>
+<p><img src="https://img.shields.io/badge/zig-black?style=for-the-badge&logo=zig" alt="zig"> <img src="https://img.shields.io/badge/rust-%23CE422B?style=for-the-badge&logo=rust" alt="rust"></p>
 
 
 ![preview](./images/preview.png)
