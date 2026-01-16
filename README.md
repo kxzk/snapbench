@@ -4,8 +4,7 @@
 
 <p><img src="https://img.shields.io/badge/zig-black?style=for-the-badge&logo=zig" alt="zig"> <img src="https://img.shields.io/badge/rust-%23CE422B?style=for-the-badge&logo=rust" alt="rust"></p>
 
-
-![preview](./images/preview.png)
+https://github.com/user-attachments/assets/10b0f8de-8f59-4748-bdfa-4bfac5bddd59
 
 ### Architecture
 
