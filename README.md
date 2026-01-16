@@ -9,13 +9,16 @@
 
 ### Architecture
 
-```mermaid
-graph LR
-    VLM["VLM<br/><sub>OpenRouter</sub>"]
-    SIM["Simulation<br/><sub>Zig/raylib</sub>"]
-    CTL["Controller<br/><sub>Rust</sub>"]
-    VLM <-->|"screenshot + prompt"| CTL
-    SIM <-->|"cmds + state<br/>UDP:9999"| CTL
+```
+                                           ┌─────────────────┐
+                    screenshot + prompt    │       VLM       │
+                         ┌───────────────► │   (OpenRouter)  │
+┌─────────────────┐      │                 └─────────────────┘
+│   Controller    ├──────┤
+│     (Rust)      │      │                 ┌─────────────────┐
+└─────────────────┘      │  cmds + state   │   Simulation    │
+                         └───────────────► │  (Zig/raylib)   │
+                              UDP:9999     └─────────────────┘
 ```
 
 ### Overview
