@@ -1,8 +1,6 @@
 <h3 align="center">SnapBench</h3>
 
-> A VLM pilots a drone through a 3D world to locate and identify creatures.
->
-> Inspired by [Pokémon Snap](https://en.wikipedia.org/wiki/Pok%C3%A9mon_Snap) (1999).
+> VLM pilots a drone through 3D world to locate and identify creatures. Inspired by [Pokémon Snap](https://en.wikipedia.org/wiki/Pok%C3%A9mon_Snap) (1999).
 
 <p><img src="https://img.shields.io/badge/zig-black?style=for-the-badge&logo=zig" alt="zig"> <img src="https://img.shields.io/badge/rust-%23CE422B?style=for-the-badge&logo=rust" alt="rust"></p>
 
