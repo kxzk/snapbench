@@ -1,12 +1,23 @@
-# Cost per 1M tokens: (input, output)
-PRICING: dict[str, tuple[float, float]] = {
-    "google/gemini-3-flash-preview": (0.50, 3.00),
-    "openai/gpt-5.2-codex": (1.75, 14.00),
-}
+from pathlib import Path
+
+import tomllib
+
+_MODELS_FILE = Path(__file__).parent / "models.toml"
+
+
+def _load_config() -> list[dict]:
+    with _MODELS_FILE.open("rb") as f:
+        return tomllib.load(f)["models"]
+
+
+def load_models() -> list[str]:
+    return [m["id"] for m in _load_config()]
 
 
 def calculate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
-    if model not in PRICING:
-        return 0.0
-    input_rate, output_rate = PRICING[model]
-    return (input_tokens * input_rate + output_tokens * output_rate) / 1_000_000
+    for m in _load_config():
+        if m["id"] == model:
+            return (
+                input_tokens * m["input_cost"] + output_tokens * m["output_cost"]
+            ) / 1_000_000
+    return 0.0

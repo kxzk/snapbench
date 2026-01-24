@@ -8,12 +8,11 @@ import time
 from pathlib import Path
 from subprocess import DEVNULL, PIPE, TimeoutExpired
 
-from pricing import calculate_cost
+from pricing import calculate_cost, load_models
 
 BENCH_DIR = Path(__file__).parent
 ROOT_DIR = BENCH_DIR.parent
 DATA_DIR = ROOT_DIR / "data"
-MODELS_FILE = BENCH_DIR / "models.txt"
 
 DEFAULT_SEED = 24
 DEFAULT_MAX_ITERATIONS = 10
@@ -47,14 +46,6 @@ def get_next_run_id() -> int:
     next_id = current + 1
     path.write_text(str(next_id))
     return next_id
-
-
-def load_models() -> list[str]:
-    return [
-        line.strip()
-        for line in MODELS_FILE.read_text().splitlines()
-        if line.strip() and not line.startswith("#")
-    ]
 
 
 def kill_process_group(proc: subprocess.Popen) -> None:
