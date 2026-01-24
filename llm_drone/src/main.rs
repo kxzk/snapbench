@@ -185,12 +185,6 @@ impl DroneState {
             let _ = parsed;
         }
 
-        if response.starts_with("OK:identified") {
-            self.creatures_found += 1;
-            if self.creatures_found >= 3 {
-                self.game_over = true;
-            }
-        }
     }
 }
 
