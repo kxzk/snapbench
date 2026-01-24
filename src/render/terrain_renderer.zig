@@ -86,15 +86,14 @@ pub fn collectBatches(w: *const world.World, batch: *RenderBatch) void {
 pub fn collectCreatureBatch(w: *const world.World, batch: *RenderBatch) void {
     batch.creatures.reset();
 
-    for (0..world.WORLD_SIZE) |z| {
-        for (0..world.WORLD_SIZE) |x| {
-            const cell = w.cells[z][x];
-            if (cell.creature_type == .none) continue;
+    for (0..w.creature_count) |i| {
+        const entry = w.creatures[i];
+        const cell = w.cells[entry.gz][entry.gx];
+        if (cell.creature_type == .none) continue;
 
-            const wpos = world.World.worldPos(x, z);
-            const transform = math.matrixScaleTranslate(wpos.x, world.cellTopY(cell.height), wpos.z, cfg.creature_scale);
-            batch.creatures.push(@intFromEnum(cell.creature_type), transform);
-        }
+        const wpos = world.World.worldPos(entry.gx, entry.gz);
+        const transform = math.matrixScaleTranslate(wpos.x, world.cellTopY(cell.height), wpos.z, cfg.creature_scale);
+        batch.creatures.push(@intFromEnum(cell.creature_type), transform);
     }
 }
 

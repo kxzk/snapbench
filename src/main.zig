@@ -12,9 +12,10 @@ const deg_to_rad = std.math.pi / 180.0;
 const min_altitude: f32 = 1.0;
 const world_half = world_mod.WORLD_HALF;
 
-const udp_horizontal: f32 = 3.0;
-const udp_vertical: f32 = 2.0;
-const udp_rotation: f32 = 15.0;
+// UDP commands are discrete actions, not continuous input - no dt scaling
+const udp_horizontal: f32 = 1.5; // units per command
+const udp_vertical: f32 = 1.0; // units per command
+const udp_rotation: f32 = 22.5; // degrees per command (16 steps = full rotation)
 
 const Command = enum { forward, backward, left, right, up, down, rotate_left, rotate_right, identify, screenshot, unknown };
 
@@ -29,6 +30,15 @@ fn yawToDirections(yaw_rad: f32) Directions {
     return .{
         .forward = .{ .x = @sin(yaw_rad), .y = 0, .z = @cos(yaw_rad) },
         .right = .{ .x = @cos(yaw_rad), .y = 0, .z = -@sin(yaw_rad) },
+    };
+}
+
+fn yawToDroneDirections(yaw_rad: f32) Directions {
+    const dirs = yawToDirections(yaw_rad);
+    // Drone visually faces { sin(yaw), 0, -cos(yaw) } due to +π transform
+    return .{
+        .forward = .{ .x = dirs.forward.x, .y = 0, .z = -dirs.forward.z },
+        .right = dirs.right,
     };
 }
 
@@ -122,20 +132,14 @@ pub fn main() void {
 
     while (!rl.WindowShouldClose()) {
         const dt = rl.GetFrameTime();
-        const dirs = yawToDirections(yaw * deg_to_rad);
-
-        // Drone visually faces { sin(yaw), 0, -cos(yaw) } due to +π transform
-        // So movement forward should match that (negate Z component)
-        const drone_dirs = Directions{
-            .forward = .{ .x = dirs.forward.x, .y = 0, .z = -dirs.forward.z },
-            .right = dirs.right,
-        };
+        var drone_dirs = yawToDroneDirections(yaw * deg_to_rad);
 
         if (!state.game_over) {
             handleInput(&target_pos, &yaw, drone_dirs, dt);
         }
 
-        if (server.tryRecv(&cmd_buf)) |recv| {
+        while (server.tryRecv(&cmd_buf)) |recv| {
+            var yaw_changed = false;
             const response = handleUdpCommand(
                 parseCommand(recv.data),
                 &target_pos,
@@ -145,8 +149,12 @@ pub fn main() void {
                 &state,
                 drone_dirs,
                 &response_buf,
+                &yaw_changed,
             );
             server.send(response, recv.client);
+            if (yaw_changed) {
+                drone_dirs = yawToDroneDirections(yaw * deg_to_rad);
+            }
         }
 
         if (terrain.creatures_dirty) {
@@ -157,12 +165,18 @@ pub fn main() void {
         const updated_yaw_rad = yaw * deg_to_rad;
         const updated_dirs = yawToDirections(updated_yaw_rad);
 
-        const resolved = collision.resolveMove(
-            &terrain,
-            .{ .x = pos.x, .y = pos.y, .z = pos.z },
-            .{ .x = target_pos.x, .y = target_pos.y, .z = target_pos.z },
-        );
-        target_pos = .{ .x = resolved.x, .y = resolved.y, .z = resolved.z };
+        const dx = target_pos.x - pos.x;
+        const dy = target_pos.y - pos.y;
+        const dz = target_pos.z - pos.z;
+        const move_dist_sq = dx * dx + dy * dy + dz * dz;
+        if (move_dist_sq > 0.0001) {
+            const resolved = collision.resolveMove(
+                &terrain,
+                .{ .x = pos.x, .y = pos.y, .z = pos.z },
+                .{ .x = target_pos.x, .y = target_pos.y, .z = target_pos.z },
+            );
+            target_pos = .{ .x = resolved.x, .y = resolved.y, .z = resolved.z };
+        }
 
         target_pos = clampToPlayArea(target_pos);
         pos = rl.Vector3Lerp(pos, target_pos, smoothing * dt);
@@ -202,8 +216,10 @@ fn handleUdpCommand(
     state: *game_state.GameState,
     dirs: Directions,
     buf: *[128]u8,
+    yaw_changed: *bool,
 ) []const u8 {
     if (cmd == .unknown) return "FAIL:unknown_command";
+    yaw_changed.* = false;
 
     if (state.game_over) {
         return std.fmt.bufPrint(buf, "OK x={d:.1} y={d:.1} z={d:.1} yaw={d:.1}", .{
@@ -221,8 +237,14 @@ fn handleUdpCommand(
         .right => target_pos.* = rl.Vector3Add(target_pos.*, rl.Vector3Scale(dirs.right, udp_horizontal)),
         .up => target_pos.y += udp_vertical,
         .down => target_pos.y -= udp_vertical,
-        .rotate_left => yaw.* -= udp_rotation,
-        .rotate_right => yaw.* += udp_rotation,
+        .rotate_left => {
+            yaw.* -= udp_rotation;
+            yaw_changed.* = true;
+        },
+        .rotate_right => {
+            yaw.* += udp_rotation;
+            yaw_changed.* = true;
+        },
         .identify => {
             if (game_state.tryIdentify(terrain, state, pos.x, pos.y, pos.z)) {
                 return std.fmt.bufPrint(buf, "OK:identified x={d:.1} y={d:.1} z={d:.1} yaw={d:.1} remaining={d}", .{

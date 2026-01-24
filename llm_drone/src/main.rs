@@ -12,27 +12,39 @@ COMMANDS: forward, backward, left, right, up, down, rotate_left, rotate_right, i
 VISUAL TARGETS:
 - Blocky animal shapes: pink pigs, white sheep, brown dogs, orange cats
 - They glow faintly and contrast against green/brown terrain
-- Identify only when creature is centered and close (appears large)
+- When you spot one: approach until touching, THEN identify (not before)
 
 NAVIGATION:
 - yaw: 0=+Z, 90=+X, 180=-Z, 270=-X
 - Stay at altitude 15-25 for best ground visibility
 - Near edges (x or z < 5 or > 59): rotate toward center before moving
 
-SEARCH PATTERN:
-- Sweep systematically — don't wander randomly
-- After hitting an edge: rotate 90°, step sideways, rotate 90°, continue opposite direction
+STUCK DETECTION — CRITICAL:
+- ALWAYS check your recent commands and position history before deciding
+- If position barely changed over 2-3 iterations: you're stuck (obstacle or edge)
+- If you sent the same movement 2+ times with no progress: STOP and rotate 90° to try a new direction
+- Pattern like [forward,forward] → [forward,forward] with same position = STUCK → rotate_left or rotate_right
+- Don't repeat failed approaches — if forward didn't work, try rotate + forward in new direction
 
-FAILED IDENTIFICATION:
-- If identify fails on a visible creature, you're too far — move forward and try again
-- Still failing? Get MUCH closer — you may need to be nearly touching it (creature fills most of frame)
-- Lower altitude (down) if needed to match creature height, then continue approaching
-- Don't abandon a spotted creature until identified or confirmed gone
+SEARCH STRATEGY:
+- Sweep systematically, don't wander randomly
+- After hitting obstacle/edge: rotate 90°, move sideways, rotate back, continue
+- Vary your approach — if one path is blocked, try altitude changes or lateral movement
+- Use rotate commands to scan surroundings when unsure where creatures are
 
-Before answering, silently consider:
-1. Do I see a creature shape? Where in frame?
-2. Am I near an edge? Which direction is center?
-3. What heading covers unexplored terrain?
+IDENTIFICATION — CRITICAL:
+- You must be TOUCHING the creature to identify it — creature should fill nearly the ENTIRE frame
+- Do NOT call identify until you are extremely close (creature obscures most of the view)
+- If you can see terrain around the creature, you're TOO FAR — keep moving forward
+- Approach sequence: spot creature → move forward repeatedly until creature fills frame → then identify
+- If identify fails: you're not close enough — move forward more, adjust altitude to match creature height
+- Only give up on a creature if you've approached and it's clearly gone
+
+REASONING (do this silently before responding):
+1. Check position history — am I making progress or stuck in place?
+2. Check command history — am I repeating the same thing? If so, try something different
+3. Do I see a creature? If yes, approach and identify. If no, continue search pattern
+4. Am I near an edge or obstacle? Rotate to find clear path
 
 Respond with ONLY a JSON array of 1-5 commands."#;
 
@@ -45,14 +57,22 @@ struct DroneState {
     creatures_found: u8,
     game_over: bool,
     recent_commands: Vec<Vec<String>>,
+    position_history: Vec<(f32, f32, f32)>, // track last few positions
 }
 
 impl DroneState {
     fn push_commands(&mut self, commands: Vec<String>) {
-        if self.recent_commands.len() >= 3 {
+        if self.recent_commands.len() >= 5 {
             self.recent_commands.remove(0);
         }
         self.recent_commands.push(commands);
+    }
+
+    fn record_position(&mut self) {
+        if self.position_history.len() >= 5 {
+            self.position_history.remove(0);
+        }
+        self.position_history.push((self.x, self.y, self.z));
     }
 
     fn format_history(&self) -> String {
@@ -64,6 +84,29 @@ impl DroneState {
             .map(|cmds| format!("{cmds:?}"))
             .collect::<Vec<_>>()
             .join(" → ")
+    }
+
+    fn format_position_history(&self) -> String {
+        if self.position_history.len() < 2 {
+            return "insufficient data".into();
+        }
+        self.position_history
+            .iter()
+            .map(|(x, y, z)| format!("({x:.1},{y:.1},{z:.1})"))
+            .collect::<Vec<_>>()
+            .join(" → ")
+    }
+
+    fn is_stuck(&self) -> bool {
+        if self.position_history.len() < 3 {
+            return false;
+        }
+        // Check if last 3 positions are nearly identical
+        let recent: Vec<_> = self.position_history.iter().rev().take(3).collect();
+        let (x0, y0, z0) = recent[0];
+        recent.iter().skip(1).all(|(x, y, z)| {
+            (x - x0).abs() < 0.5 && (y - y0).abs() < 0.5 && (z - z0).abs() < 0.5
+        })
     }
 
     fn update(&mut self, response: &str) {
@@ -157,17 +200,26 @@ async fn call_llm(
     image_b64: &str,
     state: &DroneState,
 ) -> Result<Vec<String>> {
+    let stuck_warning = if state.is_stuck() {
+        "\n⚠️ WARNING: You appear STUCK — position unchanged for 3 iterations. MUST rotate to try new direction!"
+    } else {
+        ""
+    };
+
     let user_content = format!(
         "Position: x={:.1} y={:.1} z={:.1} yaw={:.1}\n\
          Creatures found: {}/3\n\
-         Recent commands: {}\n\n\
+         Recent commands: {}\n\
+         Position history: {}{}\n\n\
          What commands should I execute?",
         state.x,
         state.y,
         state.z,
         state.yaw,
         state.creatures_found,
-        state.format_history()
+        state.format_history(),
+        state.format_position_history(),
+        stuck_warning
     );
 
     let request = ChatRequest {
@@ -238,12 +290,11 @@ async fn main() -> Result<()> {
 
     println!("LLM Drone Controller started");
     println!("Waiting for simulation...");
+    let loop_delay = Duration::from_millis(500);
 
     loop {
         let resp = send_command(&socket, "screenshot")?;
         println!("Screenshot: {}", resp);
-
-        tokio::time::sleep(Duration::from_millis(200)).await;
 
         let image = tokio::fs::read("screenshot.png")
             .await
@@ -269,7 +320,13 @@ async fn main() -> Result<()> {
             }
         }
 
+        // Record position after each iteration for stuck detection
+        state.record_position();
+        if state.is_stuck() {
+            println!("⚠️  Stuck detected at ({:.1}, {:.1}, {:.1})", state.x, state.y, state.z);
+        }
+
         println!("---");
-        tokio::time::sleep(Duration::from_secs(3)).await;
+        tokio::time::sleep(loop_delay).await;
     }
 }

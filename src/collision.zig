@@ -67,13 +67,21 @@ pub fn resolveMove(w: *const world.World, current: Vec3, target: Vec3) Vec3 {
 
     var result = target;
 
-    const terrain_with_deco = getTerrainHeight(w, target.x, target.z);
+    var terrain_with_deco: f32 = 0;
+    if (worldToGrid(target.x, target.z)) |grid| {
+        const cell = w.cells[grid.z][grid.x];
+        terrain_with_deco = world.cellTopY(cell.height) + catalog.decoHeight(cell.deco_type);
+    }
     if (terrain_with_deco > current.y - DRONE_RADIUS) {
         result.x = current.x;
         result.z = current.z;
     }
 
-    const floor = getBaseTerrainHeight(w, result.x, result.z);
+    var floor: f32 = 0;
+    if (worldToGrid(result.x, result.z)) |grid| {
+        const cell = w.cells[grid.z][grid.x];
+        floor = world.cellTopY(cell.height);
+    }
     result.y = @max(result.y, floor + DRONE_RADIUS);
 
     return result;

@@ -28,9 +28,16 @@ pub const Cell = packed struct {
     creature_type: catalog.CreatureType,
 };
 
+const CreatureEntry = struct {
+    gx: usize,
+    gz: usize,
+};
+
 pub const World = struct {
     cells: [WORLD_SIZE][WORLD_SIZE]Cell,
     seed: u64,
+    creatures: [cfg.animal_count]CreatureEntry = undefined,
+    creature_count: usize = 0,
     creatures_dirty: bool = false,
 
     /// Procedurally generates an entire world from a seed.
@@ -44,6 +51,8 @@ pub const World = struct {
 
         var world: World = undefined;
         world.seed = seed;
+        world.creature_count = 0;
+        world.creatures_dirty = false;
 
         for (0..WORLD_SIZE) |z| {
             for (0..WORLD_SIZE) |x| {
@@ -96,6 +105,15 @@ pub const World = struct {
     pub fn removeCreature(self: *World, gx: usize, gz: usize) void {
         self.cells[gz][gx].creature_type = .none;
         self.creatures_dirty = true;
+        var i: usize = 0;
+        while (i < self.creature_count) : (i += 1) {
+            const entry = self.creatures[i];
+            if (entry.gx == gx and entry.gz == gz) {
+                self.creature_count -= 1;
+                self.creatures[i] = self.creatures[self.creature_count];
+                break;
+            }
+        }
     }
 };
 
@@ -166,6 +184,10 @@ fn placeCreatures(world: *World, rand: std.Random) void {
 
         const creature_id: u8 = @intCast(rand.intRangeAtMost(usize, 1, catalog.creature_count - 1));
         world.cells[z][x].creature_type = @enumFromInt(creature_id);
+        if (world.creature_count < cfg.animal_count) {
+            world.creatures[world.creature_count] = .{ .gx = x, .gz = z };
+            world.creature_count += 1;
+        }
         placed += 1;
     }
 }

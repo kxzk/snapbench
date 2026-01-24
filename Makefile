@@ -13,7 +13,7 @@ help:
 	@echo ""
 
 sim: ## build and run the simulation
-	zig build run -- 24
+	zig build run -Doptimize=ReleaseFast -- 24
 
 drone: ## build and run the LLM-driven drone controller
 	cargo run --release --manifest-path llm_drone/Cargo.toml
