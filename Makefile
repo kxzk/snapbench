@@ -1,4 +1,4 @@
-.PHONY: sim drone clean help
+.PHONY: sim drone bench clean help
 
 .DEFAULT_GOAL := help
 
@@ -17,6 +17,9 @@ sim: ## build and run the simulation
 
 drone: ## build and run the LLM-driven drone controller
 	cargo run --release --manifest-path llm_drone/Cargo.toml
+
+bench: ## run LLM benchmark across all configured models
+	uv run bench/bench_runner.py
 
 clean: ## remove build artifacts
 	rm -rf zig-out .zig-cache drone_control llm_drone/target

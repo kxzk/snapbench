@@ -2,7 +2,62 @@ use anyhow::{Context, Result};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use serde::{Deserialize, Serialize};
 use std::net::UdpSocket;
-use std::time::Duration;
+use std::time::{Duration, Instant};
+
+#[derive(Default)]
+struct CliArgs {
+    model: String,
+    max_iterations: Option<u32>,
+    benchmark: bool,
+}
+
+fn parse_args() -> CliArgs {
+    let args: Vec<String> = std::env::args().collect();
+    let mut cli = CliArgs {
+        model: "google/gemini-3-flash-preview".to_string(),
+        ..Default::default()
+    };
+
+    let mut i = 1;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--model" => {
+                i += 1;
+                if i < args.len() {
+                    cli.model = args[i].clone();
+                }
+            }
+            "--max-iterations" => {
+                i += 1;
+                if i < args.len() {
+                    cli.max_iterations = args[i].parse().ok();
+                }
+            }
+            "--benchmark" => {
+                cli.benchmark = true;
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    cli
+}
+
+#[derive(Serialize)]
+struct BenchMetrics {
+    model: String,
+    status: String,
+    iterations: u32,
+    movements: u32,
+    input_tokens: u64,
+    output_tokens: u64,
+    creatures_found: u8,
+    creature_times_ms: Vec<u64>,
+    total_ms: u64,
+    failed_identifies: u32,
+    stuck_events: u32,
+    api_latencies_ms: Vec<u64>,
+}
 
 const SYSTEM_PROMPT: &str = r#"
 You pilot a drone hunting 3 creatures in a 64x64x64 world.
@@ -140,7 +195,7 @@ impl DroneState {
 
 #[derive(Serialize)]
 struct ChatRequest {
-    model: &'static str,
+    model: String,
     messages: Vec<Message>,
     max_tokens: u32,
 }
@@ -175,6 +230,13 @@ struct ImageUrl {
 #[derive(Deserialize)]
 struct ChatResponse {
     choices: Vec<Choice>,
+    usage: Option<Usage>,
+}
+
+#[derive(Deserialize)]
+struct Usage {
+    prompt_tokens: u64,
+    completion_tokens: u64,
 }
 
 #[derive(Deserialize)]
@@ -194,12 +256,21 @@ fn send_command(socket: &UdpSocket, cmd: &str) -> Result<String> {
     Ok(String::from_utf8_lossy(&buf[..n]).to_string())
 }
 
+struct LlmResult {
+    commands: Vec<String>,
+    input_tokens: u64,
+    output_tokens: u64,
+    latency_ms: u64,
+}
+
 async fn call_llm(
     client: &reqwest::Client,
     api_key: &str,
+    model: &str,
     image_b64: &str,
     state: &DroneState,
-) -> Result<Vec<String>> {
+    benchmark: bool,
+) -> Result<LlmResult> {
     let stuck_warning = if state.is_stuck() {
         "\n⚠️ WARNING: You appear STUCK — position unchanged for 3 iterations. MUST rotate to try new direction!"
     } else {
@@ -223,7 +294,7 @@ async fn call_llm(
     );
 
     let request = ChatRequest {
-        model: "google/gemini-3-flash-preview",
+        model: model.to_string(),
         messages: vec![
             Message {
                 role: "system",
@@ -244,6 +315,7 @@ async fn call_llm(
         max_tokens: 256,
     };
 
+    let call_start = Instant::now();
     let resp = client
         .post("https://openrouter.ai/api/v1/chat/completions")
         .header("Authorization", format!("Bearer {}", api_key))
@@ -251,6 +323,7 @@ async fn call_llm(
         .send()
         .await
         .context("Failed to call OpenRouter API")?;
+    let latency_ms = call_start.elapsed().as_millis() as u64;
 
     let status = resp.status();
     if !status.is_success() {
@@ -259,13 +332,21 @@ async fn call_llm(
     }
 
     let chat_resp: ChatResponse = resp.json().await.context("Failed to parse API response")?;
+
+    let (input_tokens, output_tokens) = chat_resp
+        .usage
+        .map(|u| (u.prompt_tokens, u.completion_tokens))
+        .unwrap_or((0, 0));
+
     let content = chat_resp
         .choices
         .first()
         .map(|c| c.message.content.clone())
         .unwrap_or_default();
 
-    println!("LLM response: {}", content);
+    if !benchmark {
+        println!("LLM response: {}", content);
+    }
 
     let json_start = content.find('[').unwrap_or(0);
     let json_end = content.rfind(']').map(|i| i + 1).unwrap_or(content.len());
@@ -274,11 +355,17 @@ async fn call_llm(
     let commands: Vec<String> =
         serde_json::from_str(json_str).unwrap_or_else(|_| vec!["forward".to_string()]);
 
-    Ok(commands)
+    Ok(LlmResult {
+        commands,
+        input_tokens,
+        output_tokens,
+        latency_ms,
+    })
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let args = parse_args();
     let api_key = std::env::var("OPENROUTER_API_KEY").context("OPENROUTER_API_KEY not set")?;
 
     let socket = UdpSocket::bind("0.0.0.0:0")?;
@@ -288,45 +375,134 @@ async fn main() -> Result<()> {
     let client = reqwest::Client::new();
     let mut state = DroneState::default();
 
-    println!("LLM Drone Controller started");
-    println!("Waiting for simulation...");
+    // Metrics tracking
+    let start_time = Instant::now();
+    let mut iterations: u32 = 0;
+    let mut movements: u32 = 0;
+    let mut input_tokens: u64 = 0;
+    let mut output_tokens: u64 = 0;
+    let mut creature_times_ms: Vec<u64> = Vec::new();
+    let mut failed_identifies: u32 = 0;
+    let mut stuck_events: u32 = 0;
+    let mut api_latencies_ms: Vec<u64> = Vec::new();
+    let mut last_creatures_found: u8 = 0;
+
+    if !args.benchmark {
+        println!("LLM Drone Controller started");
+        println!("Model: {}", args.model);
+        println!("Waiting for simulation...");
+    }
     let loop_delay = Duration::from_millis(500);
 
+    let mut final_status = String::new();
     loop {
+        iterations += 1;
+
+        // Check max iterations limit
+        if let Some(max) = args.max_iterations {
+            if iterations > max {
+                final_status = "max_iterations".to_string();
+                break;
+            }
+        }
+
         let resp = send_command(&socket, "screenshot")?;
-        println!("Screenshot: {}", resp);
+        if !args.benchmark {
+            println!("Screenshot: {}", resp);
+        }
 
         let image = tokio::fs::read("screenshot.png")
             .await
             .context("Failed to read screenshot.png")?;
         let b64 = BASE64.encode(&image);
 
-        let commands = call_llm(&client, &api_key, &b64, &state).await?;
-        println!("Executing: {:?}", commands);
+        let llm_result = call_llm(&client, &api_key, &args.model, &b64, &state, args.benchmark).await?;
 
-        state.push_commands(commands.clone());
+        // Accumulate metrics
+        input_tokens += llm_result.input_tokens;
+        output_tokens += llm_result.output_tokens;
+        api_latencies_ms.push(llm_result.latency_ms);
 
-        for cmd in commands {
+        if !args.benchmark {
+            println!("Executing: {:?}", llm_result.commands);
+        }
+
+        state.push_commands(llm_result.commands.clone());
+
+        for cmd in llm_result.commands {
             let resp = send_command(&socket, &cmd)?;
-            println!("  {} -> {}", cmd, resp);
+            if !args.benchmark {
+                println!("  {} -> {}", cmd, resp);
+            }
+
+            // Count movements (all commands except identify)
+            if cmd != "identify" {
+                movements += 1;
+            }
+
+            // Track failed identifies
+            if cmd == "identify" && resp.starts_with("FAIL") {
+                failed_identifies += 1;
+            }
+
             state.update(&resp);
 
-            if state.game_over {
-                println!(
-                    "Game complete! Found all {} creatures.",
-                    state.creatures_found
-                );
-                return Ok(());
+            // Track creature discovery time
+            if state.creatures_found > last_creatures_found {
+                creature_times_ms.push(start_time.elapsed().as_millis() as u64);
+                last_creatures_found = state.creatures_found;
             }
+
+            if state.game_over {
+                if !args.benchmark {
+                    println!(
+                        "Game complete! Found all {} creatures.",
+                        state.creatures_found
+                    );
+                }
+                final_status = "complete".to_string();
+                break;
+            }
+        }
+
+        if state.game_over {
+            break;
         }
 
         // Record position after each iteration for stuck detection
         state.record_position();
         if state.is_stuck() {
-            println!("⚠️  Stuck detected at ({:.1}, {:.1}, {:.1})", state.x, state.y, state.z);
+            stuck_events += 1;
+            if !args.benchmark {
+                println!("⚠️  Stuck detected at ({:.1}, {:.1}, {:.1})", state.x, state.y, state.z);
+            }
         }
 
-        println!("---");
+        if !args.benchmark {
+            println!("---");
+        }
         tokio::time::sleep(loop_delay).await;
     }
+
+    let total_ms = start_time.elapsed().as_millis() as u64;
+
+    if args.benchmark {
+        let metrics = BenchMetrics {
+            model: args.model,
+            status: final_status,
+            iterations,
+            movements,
+            input_tokens,
+            output_tokens,
+            creatures_found: state.creatures_found,
+            creature_times_ms,
+            total_ms,
+            failed_identifies,
+            stuck_events,
+            api_latencies_ms,
+        };
+        println!("{}", serde_json::to_string(&metrics)?);
+    }
+
+    Ok(())
 }
