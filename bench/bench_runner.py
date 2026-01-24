@@ -1,5 +1,6 @@
 # /// script
 # requires-python = ">=3.11"
+# dependencies = ["rich"]
 # ///
 import csv
 import json
@@ -10,7 +11,16 @@ import time
 from pathlib import Path
 from subprocess import DEVNULL, PIPE, TimeoutExpired
 
+from rich.align import Align
+from rich.console import Console
+from rich.panel import Panel
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
+from rich.table import Table
+from rich.text import Text
+
 from pricing import calculate_cost, load_models
+
+console = Console()
 
 BENCH_DIR = Path(__file__).parent
 ROOT_DIR = BENCH_DIR.parent
@@ -162,6 +172,50 @@ def result_to_row(result: dict, run_id: int, seed: int) -> dict:
     return row
 
 
+def format_status(status: str) -> Text:
+    colors = {
+        "complete": "green",
+        "timeout": "yellow",
+        "max_iterations": "cyan",
+        "error": "red",
+    }
+    return Text(status, style=colors.get(status, "white"))
+
+
+def format_creatures(found: int) -> Text:
+    if found == 3:
+        return Text("3/3", style="bold green")
+    elif found > 0:
+        return Text(f"{found}/3", style="yellow")
+    return Text("0/3", style="red")
+
+
+def build_results_table(results: list[dict[str, object]]) -> Table:
+    table = Table(title="Benchmark Results", show_header=True, header_style="bold cyan")
+    table.add_column("Model", style="white", no_wrap=True)
+    table.add_column("Status", justify="center")
+    table.add_column("Creatures", justify="center")
+    table.add_column("Iterations", justify="right")
+    table.add_column("Time (s)", justify="right")
+    table.add_column("Tokens (in/out)", justify="right")
+    table.add_column("Cost", justify="right", style="green")
+
+    for row in results:
+        time_s = f"{row['total_ms'] / 1000:.1f}" if row["total_ms"] else "-"
+        tokens = f"{row['input_tokens']:,}/{row['output_tokens']:,}"
+        table.add_row(
+            row["model"],
+            format_status(row["status"]),
+            format_creatures(row["creatures_found"]),
+            str(row["iterations"]),
+            time_s,
+            tokens,
+            f"${row['cost_usd']:.4f}",
+        )
+
+    return table
+
+
 def main() -> None:
     DATA_DIR.mkdir(exist_ok=True)
 
@@ -169,26 +223,42 @@ def main() -> None:
     models = load_models()
     seed = DEFAULT_SEED
 
-    print(f"=== Benchmark Run {run_id} ===")
-    print(f"Seed: {seed}")
-    print(f"Models: {models}")
-    print()
+    header = Panel(
+        Align.center(f"[bold]Run ID:[/] {run_id}  │  [bold]Seed:[/] {seed}  │  [bold]Models:[/] {len(models)}"),
+        title="[bold cyan]SnapBench[/]",
+        border_style="cyan",
+    )
+    console.print(header)
+    console.print()
 
     results: list[dict] = []
 
-    for model in models:
-        print(f"Running: {model}...")
-        result = run_benchmark(model, seed, DEFAULT_MAX_ITERATIONS)
-        row = result_to_row(result, run_id, seed)
-        results.append(row)
+    progress = Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        TimeElapsedColumn(),
+        console=console,
+    )
 
-        status = row["status"]
-        creatures = row["creatures_found"]
-        cost = row["cost_usd"]
-        print(f"  Status: {status}, Creatures: {creatures}/3, Cost: ${cost:.6f}")
-        if "error" in result:
-            print(f"  Error: {result['error']}")
-        print()
+    with progress:
+        task = progress.add_task("Running benchmarks...", total=len(models))
+
+        for model in models:
+            progress.update(task, description=f"[cyan]{model}[/]")
+            result = run_benchmark(model, seed, DEFAULT_MAX_ITERATIONS)
+            row = result_to_row(result, run_id, seed)
+            results.append(row)
+
+            if "error" in result:
+                console.print(f"  [red]Error:[/] {result['error']}")
+
+            progress.advance(task)
+
+    console.print()
+    console.print(build_results_table(results))
+    console.print()
 
     csv_path = DATA_DIR / f"run_{run_id}.csv"
     with csv_path.open("w", newline="") as f:
@@ -196,7 +266,7 @@ def main() -> None:
         writer.writeheader()
         writer.writerows(results)
 
-    print(f"Results written to: {csv_path}")
+    console.print(f"[dim]Results saved to:[/] [bold]{csv_path}[/]")
 
 
 if __name__ == "__main__":
