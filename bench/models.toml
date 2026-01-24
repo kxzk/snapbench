@@ -11,11 +11,6 @@ input_cost = 1.75
 output_cost = 14.00
 
 [[models]]
-id = "z-ai/glm-4.6v"
-input_cost = 0.30
-output_cost = 0.90
-
-[[models]]
 id = "anthropic/claude-opus-4.5"
 input_cost = 5.00
 output_cost = 25.00
@@ -44,13 +39,3 @@ output_cost = 0.00
 id = "openai/gpt-5.2-chat"
 input_cost = 1.75
 output_cost = 14.00
-
-[[models]]
-id = "openai/gpt-5.2-pro"
-input_cost = 21.00
-output_cost = 168.00
-
-[[models]]
-id = "anthropic/claude-sonnet-4.5"
-input_cost = 3.00
-output_cost = 15.00
