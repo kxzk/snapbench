@@ -58,3 +58,22 @@ fn checkAndRemoveCreature(world: *world_mod.World, gx: usize, gz: usize, drone_x
     world.removeCreature(gx, gz);
     return true;
 }
+
+pub fn minDistanceToCreature(world: *world_mod.World, drone_x: f32, drone_y: f32, drone_z: f32) ?f32 {
+    if (world.creature_count == 0) return null;
+
+    var min_dist: f32 = std.math.floatMax(f32);
+    for (0..world.creature_count) |i| {
+        const entry = world.creatures[i];
+        const wpos = world_mod.World.worldPos(entry.gx, entry.gz);
+        const cell = world.cells[entry.gz][entry.gx];
+        const creature_y = world_mod.cellTopY(cell.height);
+
+        const dx = drone_x - wpos.x;
+        const dy = drone_y - creature_y;
+        const dz = drone_z - wpos.z;
+        const dist = @sqrt(dx * dx + dy * dy + dz * dz);
+        min_dist = @min(min_dist, dist);
+    }
+    return min_dist;
+}

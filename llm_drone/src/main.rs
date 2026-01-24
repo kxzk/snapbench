@@ -57,6 +57,7 @@ struct BenchMetrics {
     failed_identifies: u32,
     stuck_events: u32,
     api_latencies_ms: Vec<u64>,
+    min_distance_to_creature: Option<f32>,
 }
 
 const SYSTEM_PROMPT: &str = r#"
@@ -385,6 +386,7 @@ async fn main() -> Result<()> {
     let mut failed_identifies: u32 = 0;
     let mut stuck_events: u32 = 0;
     let mut api_latencies_ms: Vec<u64> = Vec::new();
+    let mut min_distance_to_creature: f32 = f32::INFINITY;
     let mut last_creatures_found: u8 = 0;
 
     if !args.benchmark {
@@ -447,6 +449,15 @@ async fn main() -> Result<()> {
 
             state.update(&resp);
 
+            // Track minimum distance to any creature
+            if let Some(dist) = resp
+                .split_whitespace()
+                .find_map(|s| s.strip_prefix("min_dist="))
+                .and_then(|v| v.parse::<f32>().ok())
+            {
+                min_distance_to_creature = min_distance_to_creature.min(dist);
+            }
+
             // Track creature discovery time
             if state.creatures_found > last_creatures_found {
                 creature_times_ms.push(start_time.elapsed().as_millis() as u64);
@@ -500,6 +511,11 @@ async fn main() -> Result<()> {
             failed_identifies,
             stuck_events,
             api_latencies_ms,
+            min_distance_to_creature: if min_distance_to_creature.is_infinite() {
+                None
+            } else {
+                Some(min_distance_to_creature)
+            },
         };
         println!("{}", serde_json::to_string(&metrics)?);
     }

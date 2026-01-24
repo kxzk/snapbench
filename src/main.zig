@@ -210,6 +210,27 @@ pub fn main() void {
     }
 }
 
+fn formatResponse(buf: *[128]u8, prefix: []const u8, p: rl.Vector3, yaw: f32, min_dist: ?f32, remaining: ?u8) []const u8 {
+    if (remaining) |r| {
+        if (min_dist) |d| {
+            return std.fmt.bufPrint(buf, "{s} x={d:.1} y={d:.1} z={d:.1} yaw={d:.1} remaining={d} min_dist={d:.2}", .{
+                prefix, p.x, p.y, p.z, yaw, r, d,
+            }) catch "ERR";
+        }
+        return std.fmt.bufPrint(buf, "{s} x={d:.1} y={d:.1} z={d:.1} yaw={d:.1} remaining={d} min_dist=none", .{
+            prefix, p.x, p.y, p.z, yaw, r,
+        }) catch "ERR";
+    }
+    if (min_dist) |d| {
+        return std.fmt.bufPrint(buf, "{s} x={d:.1} y={d:.1} z={d:.1} yaw={d:.1} min_dist={d:.2}", .{
+            prefix, p.x, p.y, p.z, yaw, d,
+        }) catch "ERR";
+    }
+    return std.fmt.bufPrint(buf, "{s} x={d:.1} y={d:.1} z={d:.1} yaw={d:.1} min_dist=none", .{
+        prefix, p.x, p.y, p.z, yaw,
+    }) catch "ERR";
+}
+
 fn handleUdpCommand(
     cmd: Command,
     target_pos: *rl.Vector3,
@@ -225,12 +246,7 @@ fn handleUdpCommand(
     yaw_changed.* = false;
 
     if (state.game_over) {
-        return std.fmt.bufPrint(buf, "OK x={d:.1} y={d:.1} z={d:.1} yaw={d:.1}", .{
-            pos.x,
-            pos.y,
-            pos.z,
-            yaw.*,
-        }) catch "ERR";
+        return formatResponse(buf, "OK", pos, yaw.*, null, null);
     }
 
     switch (cmd) {
@@ -250,20 +266,11 @@ fn handleUdpCommand(
         },
         .identify => {
             if (game_state.tryIdentify(terrain, state, pos.x, pos.y, pos.z)) {
-                return std.fmt.bufPrint(buf, "OK:identified x={d:.1} y={d:.1} z={d:.1} yaw={d:.1} remaining={d}", .{
-                    pos.x,
-                    pos.y,
-                    pos.z,
-                    yaw.*,
-                    state.remaining(),
-                }) catch "ERR";
+                const new_min_dist = game_state.minDistanceToCreature(terrain, pos.x, pos.y, pos.z);
+                return formatResponse(buf, "OK:identified", pos, yaw.*, new_min_dist, state.remaining());
             }
-            return std.fmt.bufPrint(buf, "FAIL:no_creature_in_range x={d:.1} y={d:.1} z={d:.1} yaw={d:.1}", .{
-                pos.x,
-                pos.y,
-                pos.z,
-                yaw.*,
-            }) catch "ERR";
+            const min_dist = game_state.minDistanceToCreature(terrain, pos.x, pos.y, pos.z);
+            return formatResponse(buf, "FAIL:no_creature_in_range", pos, yaw.*, min_dist, null);
         },
         .screenshot => {
             rl.TakeScreenshot("screenshot.png");
@@ -272,12 +279,8 @@ fn handleUdpCommand(
         .unknown => unreachable,
     }
 
-    return std.fmt.bufPrint(buf, "OK x={d:.1} y={d:.1} z={d:.1} yaw={d:.1}", .{
-        target_pos.x,
-        target_pos.y,
-        target_pos.z,
-        yaw.*,
-    }) catch "ERR";
+    const min_dist = game_state.minDistanceToCreature(terrain, pos.x, pos.y, pos.z);
+    return formatResponse(buf, "OK", target_pos.*, yaw.*, min_dist, null);
 }
 
 const hud_bg = rl.Color{ .r = 255, .g = 255, .b = 255, .a = 120 };

@@ -36,6 +36,7 @@ CSV_COLUMNS = [
     "total_ms",
     "failed_identifies",
     "stuck_events",
+    "min_distance_to_creature",
     "avg_api_latency_ms",
     "commands_per_creature",
     "cost_usd",
@@ -132,6 +133,7 @@ def result_to_row(result: dict, run_id: int, seed: int) -> dict:
         "total_ms": result.get("total_ms", 0),
         "failed_identifies": result.get("failed_identifies", 0),
         "stuck_events": result.get("stuck_events", 0),
+        "min_distance_to_creature": result.get("min_distance_to_creature", ""),
     }
 
     # Creature discovery times
