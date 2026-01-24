@@ -83,6 +83,9 @@ pub fn main() void {
     rl.InitWindow(1280, 720, "SnapBench");
     defer rl.CloseWindow();
 
+    // Tighter clip planes for better depth buffer precision (reduces Z-fighting artifacts)
+    rl.rlSetClipPlanes(1.0, 500.0);
+
     var camera = rl.Camera3D{
         .position = .{ .x = 0, .y = 50, .z = -100 },
         .target = .{ .x = 0, .y = 50, .z = 0 },

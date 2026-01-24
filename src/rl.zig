@@ -77,3 +77,4 @@ pub const SHADER_UNIFORM_FLOAT = c.SHADER_UNIFORM_FLOAT;
 pub const GetTime = c.GetTime;
 pub const SetShaderValue = c.SetShaderValue;
 pub const TakeScreenshot = c.TakeScreenshot;
+pub const rlSetClipPlanes = c.rlSetClipPlanes;
