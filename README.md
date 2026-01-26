@@ -28,7 +28,7 @@ flowchart LR
     style VLM fill:#87CEEB,stroke:#5BA3C6,color:#1a1a1a
     style Simulation fill:#4A7C23,stroke:#2D5A10,color:#fff
     style C fill:#B8864A,stroke:#8B5A2B,color:#fff
-    style V fill:#B5E0F7,stroke:#87CEEB,color:#fff
+    style V fill:#B5E0F7,stroke:#87CEEB,color:#1a1a1a
     style S fill:#6BA33A,stroke:#4A7C23,color:#fff
 ```
 
