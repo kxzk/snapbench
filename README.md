@@ -38,6 +38,10 @@ The simulation generates procedural terrain and spawns creatures (cat, dog, pig,
 
 <br>
 
+https://github.com/user-attachments/assets/37903246-a5ae-4e83-87c6-c099198c8724
+
+<br>
+
 ## Gotta catch 'em all?
 
 I gave 7 frontier LLMs a simple task: pilot a drone through a 3D voxel world and find 3 creatures.
