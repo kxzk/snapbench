@@ -13,10 +13,10 @@ help:
 	@echo ""
 
 sim: ## build and run the simulation
-	zig build run -Doptimize=ReleaseFast -- 24
+	zig build run -Doptimize=ReleaseFast -- $(or $(SEED),$(shell shuf -i 0-100 -n 1))
 
 drone: ## build and run the LLM-driven drone controller
-	cargo run --release --manifest-path llm_drone/Cargo.toml
+	cargo run --release --manifest-path llm_drone/Cargo.toml -- --model google/gemini-3-flash-preview
 
 bench: ## run LLM benchmark across all configured models
 	uv run bench/bench_runner.py

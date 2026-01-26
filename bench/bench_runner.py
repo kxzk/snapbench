@@ -8,6 +8,7 @@ import os
 import signal
 import subprocess
 import time
+import random
 from pathlib import Path
 from subprocess import DEVNULL, PIPE, TimeoutExpired
 
@@ -26,7 +27,6 @@ BENCH_DIR = Path(__file__).parent
 ROOT_DIR = BENCH_DIR.parent
 DATA_DIR = ROOT_DIR / "data"
 
-DEFAULT_SEED = 24
 DEFAULT_MAX_ITERATIONS = 50
 DEFAULT_TIMEOUT = 300  # 5 minutes
 
@@ -46,6 +46,7 @@ CSV_COLUMNS = [
     "total_ms",
     "failed_identifies",
     "stuck_events",
+    "api_errors",
     "min_distance_to_creature",
     "avg_api_latency_ms",
     "commands_per_creature",
@@ -105,11 +106,28 @@ def run_benchmark(model: str, seed: int, max_iterations: int) -> dict:
             stderr=PIPE,
         )
 
+        checkpoint_path = ROOT_DIR / "bench_checkpoint.json"
+
         try:
             stdout, stderr = drone.communicate(timeout=DEFAULT_TIMEOUT)
         except TimeoutExpired:
             drone.kill()
+            drone.wait()
+
+            # Try to recover metrics from checkpoint
+            if checkpoint_path.exists():
+                try:
+                    data = json.loads(checkpoint_path.read_text())
+                    data["status"] = "timeout"
+                    checkpoint_path.unlink()
+                    return data
+                except (json.JSONDecodeError, OSError):
+                    pass
+
             return {"model": model, "status": "timeout"}
+
+        if checkpoint_path.exists():
+            checkpoint_path.unlink()
 
         output = stdout.decode().strip()
         stderr_text = stderr.decode().strip()
@@ -143,6 +161,7 @@ def result_to_row(result: dict, run_id: int, seed: int) -> dict:
         "total_ms": result.get("total_ms", 0),
         "failed_identifies": result.get("failed_identifies", 0),
         "stuck_events": result.get("stuck_events", 0),
+        "api_errors": result.get("api_errors", 0),
         "min_distance_to_creature": result.get("min_distance_to_creature", ""),
     }
 
@@ -221,12 +240,13 @@ def main() -> None:
 
     run_id = get_next_run_id()
     models = load_models()
-    seed = DEFAULT_SEED
+    seed = random.randint(0, 100)
 
     header = Panel(
         Align.center(f"[bold]Run ID:[/] {run_id}  │  [bold]Seed:[/] {seed}  │  [bold]Models:[/] {len(models)}"),
         title="[bold cyan]SnapBench[/]",
         border_style="cyan",
+        expand=True,
     )
     console.print(header)
     console.print()
@@ -236,7 +256,7 @@ def main() -> None:
     progress = Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
+        BarColumn(bar_width=None),
         TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
         TimeElapsedColumn(),
         console=console,

@@ -1,0 +1,8 @@
+run_id,seed,model,status,iterations,movements,input_tokens,output_tokens,creatures_found,time_to_creature_1_ms,time_to_creature_2_ms,time_to_creature_3_ms,total_ms,failed_identifies,stuck_events,api_errors,min_distance_to_creature,avg_api_latency_ms,commands_per_creature,cost_usd
+5,96,google/gemini-3-flash-preview,max_iterations,51,168,71955,608,0,,,,132562,3,0,15,12.3,2656.97,,0.037802
+5,96,openai/gpt-5.2-codex,max_iterations,51,128,89126,5954,0,,,,274024,0,2,0,26.65,454.46,,0.239326
+5,96,anthropic/claude-opus-4.5,timeout,39,183,84401,4466,0,,,,298719,6,1,0,14.18,3904.26,,0.533655
+5,96,x-ai/grok-4.1-fast,timeout,8,30,9873,19057,0,,,,205786,0,0,0,26.65,888.12,,0.011503
+5,96,google/gemini-3-pro-preview,timeout,44,44,87479,11132,0,,,,296095,0,0,0,18.25,4480.73,,0.308542
+5,96,anthropic/claude-haiku-4.5,max_iterations,51,161,107188,10381,0,,,,205376,0,3,0,26.65,1125.28,,0.159093
+5,96,openai/gpt-5.2-chat,timeout,44,112,86455,8723,0,,,,299146,0,0,0,26.65,449.41,,0.273418

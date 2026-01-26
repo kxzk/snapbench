@@ -31,11 +31,6 @@ input_cost = 1.00
 output_cost = 5.00
 
 [[models]]
-id = "allenai/molmo-2-8b:free"
-input_cost = 0.00
-output_cost = 0.00
-
-[[models]]
 id = "openai/gpt-5.2-chat"
 input_cost = 1.75
 output_cost = 14.00

@@ -43,7 +43,7 @@ fn parse_args() -> CliArgs {
     cli
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 struct BenchMetrics {
     model: String,
     status: String,
@@ -58,6 +58,47 @@ struct BenchMetrics {
     stuck_events: u32,
     api_latencies_ms: Vec<u64>,
     min_distance_to_creature: Option<f32>,
+    api_errors: u32,
+}
+
+const CHECKPOINT_FILE: &str = "bench_checkpoint.json";
+
+fn build_metrics(
+    model: &str,
+    status: &str,
+    iterations: u32,
+    movements: u32,
+    input_tokens: u64,
+    output_tokens: u64,
+    creatures_found: u8,
+    creature_times_ms: &[u64],
+    total_ms: u64,
+    failed_identifies: u32,
+    stuck_events: u32,
+    api_latencies_ms: &[u64],
+    min_distance_to_creature: f32,
+    api_errors: u32,
+) -> BenchMetrics {
+    BenchMetrics {
+        model: model.to_string(),
+        status: status.to_string(),
+        iterations,
+        movements,
+        input_tokens,
+        output_tokens,
+        creatures_found,
+        creature_times_ms: creature_times_ms.to_vec(),
+        total_ms,
+        failed_identifies,
+        stuck_events,
+        api_latencies_ms: api_latencies_ms.to_vec(),
+        min_distance_to_creature: if min_distance_to_creature.is_infinite() {
+            None
+        } else {
+            Some(min_distance_to_creature)
+        },
+        api_errors,
+    }
 }
 
 const SYSTEM_PROMPT: &str = r#"
@@ -102,7 +143,22 @@ REASONING (do this silently before responding):
 3. Do I see a creature? If yes, approach and identify. If no, continue search pattern
 4. Am I near an edge or obstacle? Rotate to find clear path
 
-Respond with ONLY a JSON array of 1-5 commands."#;
+OUTPUT FORMAT — MANDATORY:
+You MUST respond with ONLY a valid JSON array of 1-5 command strings. No other text, no explanation, no markdown.
+
+Valid examples:
+["forward", "forward", "forward"]
+["rotate_left", "forward", "forward"]
+["up", "forward", "down", "identify"]
+["rotate_right", "rotate_right", "forward"]
+
+Invalid (DO NOT DO THIS):
+- ```json ["forward"] ``` ← no markdown code blocks
+- Here are my commands: ["forward"] ← no prose
+- ["forward", "turn_left"] ← "turn_left" is not a valid command
+- forward, forward ← must be JSON array with quotes
+
+CRITICAL: Your entire response must be parseable as JSON. Any text outside the array causes failure."#;
 
 #[derive(Default)]
 struct DroneState {
@@ -160,9 +216,10 @@ impl DroneState {
         // Check if last 3 positions are nearly identical
         let recent: Vec<_> = self.position_history.iter().rev().take(3).collect();
         let (x0, y0, z0) = recent[0];
-        recent.iter().skip(1).all(|(x, y, z)| {
-            (x - x0).abs() < 0.5 && (y - y0).abs() < 0.5 && (z - z0).abs() < 0.5
-        })
+        recent
+            .iter()
+            .skip(1)
+            .all(|(x, y, z)| (x - x0).abs() < 0.5 && (y - y0).abs() < 0.5 && (z - z0).abs() < 0.5)
     }
 
     fn update(&mut self, response: &str) {
@@ -184,7 +241,6 @@ impl DroneState {
             };
             let _ = parsed;
         }
-
     }
 }
 
@@ -382,6 +438,7 @@ async fn main() -> Result<()> {
     let mut api_latencies_ms: Vec<u64> = Vec::new();
     let mut min_distance_to_creature: f32 = f32::INFINITY;
     let mut last_creatures_found: u8 = 0;
+    let mut api_errors: u32 = 0;
 
     if !args.benchmark {
         println!("LLM Drone Controller started");
@@ -412,7 +469,18 @@ async fn main() -> Result<()> {
             .context("Failed to read screenshot.png")?;
         let b64 = BASE64.encode(&image);
 
-        let llm_result = call_llm(&client, &api_key, &args.model, &b64, &state, args.benchmark).await?;
+        let llm_result =
+            match call_llm(&client, &api_key, &args.model, &b64, &state, args.benchmark).await {
+                Ok(result) => result,
+                Err(e) => {
+                    api_errors += 1;
+                    if !args.benchmark {
+                        eprintln!("API error: {e}");
+                    }
+                    tokio::time::sleep(loop_delay).await;
+                    continue;
+                }
+            };
 
         // Accumulate metrics
         input_tokens += llm_result.input_tokens;
@@ -479,39 +547,62 @@ async fn main() -> Result<()> {
         if state.is_stuck() {
             stuck_events += 1;
             if !args.benchmark {
-                println!("⚠️  Stuck detected at ({:.1}, {:.1}, {:.1})", state.x, state.y, state.z);
+                println!(
+                    "⚠️  Stuck detected at ({:.1}, {:.1}, {:.1})",
+                    state.x, state.y, state.z
+                );
             }
         }
 
         if !args.benchmark {
             println!("---");
         }
+
+        if args.benchmark {
+            let checkpoint = build_metrics(
+                &args.model,
+                "in_progress",
+                iterations,
+                movements,
+                input_tokens,
+                output_tokens,
+                state.creatures_found,
+                &creature_times_ms,
+                start_time.elapsed().as_millis() as u64,
+                failed_identifies,
+                stuck_events,
+                &api_latencies_ms,
+                min_distance_to_creature,
+                api_errors,
+            );
+            let _ = std::fs::write(
+                CHECKPOINT_FILE,
+                serde_json::to_string(&checkpoint).unwrap_or_default(),
+            );
+        }
+
         tokio::time::sleep(loop_delay).await;
     }
 
-    let total_ms = start_time.elapsed().as_millis() as u64;
-
     if args.benchmark {
-        let metrics = BenchMetrics {
-            model: args.model,
-            status: final_status,
+        let metrics = build_metrics(
+            &args.model,
+            &final_status,
             iterations,
             movements,
             input_tokens,
             output_tokens,
-            creatures_found: state.creatures_found,
-            creature_times_ms,
-            total_ms,
+            state.creatures_found,
+            &creature_times_ms,
+            start_time.elapsed().as_millis() as u64,
             failed_identifies,
             stuck_events,
-            api_latencies_ms,
-            min_distance_to_creature: if min_distance_to_creature.is_infinite() {
-                None
-            } else {
-                Some(min_distance_to_creature)
-            },
-        };
+            &api_latencies_ms,
+            min_distance_to_creature,
+            api_errors,
+        );
         println!("{}", serde_json::to_string(&metrics)?);
+        let _ = std::fs::remove_file(CHECKPOINT_FILE);
     }
 
     Ok(())
