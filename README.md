@@ -22,7 +22,7 @@ flowchart LR
     end
 
     C -->|"screenshot + prompt"| V
-    C <-->|"cmds + state\n**UDP:9999**"| S
+    C <-->|"cmds + state<br>**UDP:9999**"| S
 
     style Controller fill:#8B5A2B,stroke:#5C3A1A,color:#fff
     style VLM fill:#87CEEB,stroke:#5BA3C6,color:#1a1a1a
