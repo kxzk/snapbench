@@ -100,7 +100,8 @@ pub fn collectCreatureBatch(w: *const world.World, batch: *RenderBatch) void {
         if (cell.creature_type == .none) continue;
 
         const wpos = world.World.worldPos(entry.gx, entry.gz);
-        const transform = math.matrixScaleTranslate(wpos.x, world.cellTopY(cell.height), wpos.z, cfg.creature_scale);
+        const cell_top_y = world.cellTopY(cell.height);
+        const transform = math.matrixScaleTranslate(wpos.x, cell_top_y, wpos.z, cfg.creature_scale);
         batch.creatures.push(@intFromEnum(cell.creature_type), transform);
     }
 }

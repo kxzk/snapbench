@@ -3,19 +3,19 @@ const std = @import("std");
 /// Quintic smoothstep (6t^5 - 15t^4 + 10t^3). Ken Perlin's improved fade function.
 /// Produces smoother gradients than the original cubic by having zero first AND second
 /// derivatives at 0 and 1, eliminating visible grid artifacts.
-fn fade(t: f32) f32 {
+inline fn fade(t: f32) f32 {
     return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
 }
 
 /// Standard linear interpolation. Returns a when t=0, b when t=1.
-fn lerp(t: f32, a: f32, b: f32) f32 {
+inline fn lerp(t: f32, a: f32, b: f32) f32 {
     return a + t * (b - a);
 }
 
 /// Computes gradient dot product for 2D Perlin noise.
 /// Uses the low 2 bits of hash to select one of four gradient directions,
 /// then dots that gradient with the offset vector (x,y) from grid corner.
-fn grad(hash: u8, x: f32, y: f32) f32 {
+inline fn grad(hash: u8, x: f32, y: f32) f32 {
     const h = hash & 3;
     const u = if (h < 2) x else y;
     const v = if (h < 2) y else x;

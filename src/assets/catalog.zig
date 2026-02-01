@@ -81,7 +81,7 @@ pub fn creaturePath(t: CreatureType) ?[:0]const u8 {
 /// Returns the collision height of a decoration for terrain height calculations.
 /// Trees are tall (6.0), flowers are short (0.5). Used to extend the effective
 /// terrain surface upward so the drone can't fly through decoration geometry.
-pub fn decoHeight(t: DecoType) f32 {
+pub inline fn decoHeight(t: DecoType) f32 {
     return switch (t) {
         .none => 0.0,
         .tree => 6.0,
