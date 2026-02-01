@@ -32,6 +32,12 @@ flowchart LR
     style S fill:#6BA33A,stroke:#4A7C23,color:#fff
 ```
 
+### Latest Results
+
+| Model | Creatures Detected |
+|-------|--------------------|
+| moonshotai/kimi-k2.5 | 0 |
+
 ### Overview
 
 The simulation generates procedural terrain and spawns creatures (cat, dog, pig, sheep) for the drone to discover. It handles drone physics and collision detection, accepting 8 movement commands plus `identify` and `screenshot`. The Rust controller captures frames from the simulation, constructs prompts enriched with position and state data, then parses VLM responses into executable command sequences. The objective: locate and successfully identify 3 creatures, where `identify` succeeds when the drone is within 5 units of a target.

@@ -1,0 +1,6 @@
+timestamp,seed,model,status,iterations,movements,input_tokens,output_tokens,creatures_found,time_to_creature_1_ms,time_to_creature_2_ms,time_to_creature_3_ms,total_ms,failed_identifies,stuck_events,api_errors,min_distance_to_creature,avg_api_latency_ms,commands_per_creature,cost_usd
+2026-02-01T16:35:04.881467+00:00,7,moonshotai/kimi-k2.5,timeout,18,34,36729,4436,0,,,,296925,0,0,0,23.05,5781.0,,0.030785
+2026-02-01T16:40:06.917698+00:00,23,moonshotai/kimi-k2.5,timeout,11,11,22244,2816,0,,,,294289,0,0,0,46.63,7815.91,,0.019007
+2026-02-01T16:45:08.966368+00:00,24,moonshotai/kimi-k2.5,timeout,16,24,32561,3948,0,,,,254997,0,0,0,34.44,7068.0,,0.027335
+2026-02-01T16:50:11.005833+00:00,29,moonshotai/kimi-k2.5,timeout,18,33,36748,4332,0,,,,267099,0,0,0,34.26,5314.33,,0.030504
+2026-02-01T16:55:13.051707+00:00,61,moonshotai/kimi-k2.5,timeout,21,33,42868,5168,0,,,,295386,0,0,0,24.46,5309.29,,0.035904

@@ -2,24 +2,30 @@
 # requires-python = ">=3.11"
 # dependencies = ["rich"]
 # ///
+import argparse
 import csv
 import json
 import os
 import signal
 import subprocess
 import time
-import random
+from datetime import datetime, timezone
 from pathlib import Path
 from subprocess import DEVNULL, PIPE, TimeoutExpired
 
+from pricing import calculate_cost, load_models
 from rich.align import Align
 from rich.console import Console
 from rich.panel import Panel
-from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
 from rich.table import Table
 from rich.text import Text
-
-from pricing import calculate_cost, load_models
 
 console = Console()
 
@@ -30,8 +36,10 @@ DATA_DIR = ROOT_DIR / "data"
 DEFAULT_MAX_ITERATIONS = 50
 DEFAULT_TIMEOUT = 300  # 5 minutes
 
+SEEDS = [7, 23, 24, 29, 61]
+
 CSV_COLUMNS = [
-    "run_id",
+    "timestamp",
     "seed",
     "model",
     "status",
@@ -54,12 +62,46 @@ CSV_COLUMNS = [
 ]
 
 
-def get_next_run_id() -> int:
-    path = DATA_DIR / "run_id.txt"
-    current = int(path.read_text().strip()) if path.exists() else -1
-    next_id = current + 1
-    path.write_text(str(next_id))
-    return next_id
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="SnapBench runner")
+    parser.add_argument("--model", help="Run single model (default: all models)")
+    parser.add_argument(
+        "--force", action="store_true", help="Re-run existing model+seed combos"
+    )
+    return parser.parse_args()
+
+
+def load_existing_results() -> set[tuple[str, int]]:
+    path = DATA_DIR / "results.csv"
+    if not path.exists():
+        return set()
+    with path.open() as f:
+        reader = csv.DictReader(f)
+        return {(row["model"], int(row["seed"])) for row in reader}
+
+
+def remove_model_results(models: list[str]) -> None:
+    path = DATA_DIR / "results.csv"
+    if not path.exists():
+        return
+    model_set = set(models)
+    with path.open() as f:
+        reader = csv.DictReader(f)
+        rows = [r for r in reader if r["model"] not in model_set]
+    with path.open("w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=CSV_COLUMNS)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def append_result(row: dict) -> None:
+    path = DATA_DIR / "results.csv"
+    write_header = not path.exists()
+    with path.open("a", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=CSV_COLUMNS)
+        if write_header:
+            writer.writeheader()
+        writer.writerow(row)
 
 
 def kill_process_group(proc: subprocess.Popen) -> None:
@@ -147,9 +189,9 @@ def run_benchmark(model: str, seed: int, max_iterations: int) -> dict:
         kill_process_group(sim)
 
 
-def result_to_row(result: dict, run_id: int, seed: int) -> dict:
+def result_to_row(result: dict, seed: int) -> dict:
     row = {
-        "run_id": run_id,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "seed": seed,
         "model": result.get("model", ""),
         "status": result.get("status", "error"),
@@ -237,19 +279,32 @@ def build_results_table(results: list[dict[str, object]]) -> Table:
 
 def main() -> None:
     DATA_DIR.mkdir(exist_ok=True)
+    args = parse_args()
 
-    run_id = get_next_run_id()
-    models = load_models()
-    seed = random.randint(0, 100)
+    models = [args.model] if args.model else load_models()
+
+    if args.force:
+        remove_model_results(models)
+        existing: set[tuple[str, int]] = set()
+    else:
+        existing = load_existing_results()
+
+    work = [(m, s) for m in models for s in SEEDS if (m, s) not in existing]
 
     header = Panel(
-        Align.center(f"[bold]Run ID:[/] {run_id}  │  [bold]Seed:[/] {seed}  │  [bold]Models:[/] {len(models)}"),
+        Align.center(
+            f"[bold]Models:[/] {len(models)}  │  [bold]Seeds:[/] {len(SEEDS)}  │  [bold]Pending:[/] {len(work)}"
+        ),
         title="[bold cyan]SnapBench[/]",
         border_style="cyan",
         expand=True,
     )
     console.print(header)
     console.print()
+
+    if not work:
+        console.print("[green]All benchmarks complete.[/]")
+        return
 
     results: list[dict] = []
 
@@ -263,13 +318,14 @@ def main() -> None:
     )
 
     with progress:
-        task = progress.add_task("Running benchmarks...", total=len(models))
+        task = progress.add_task("Running benchmarks...", total=len(work))
 
-        for model in models:
-            progress.update(task, description=f"[cyan]{model}[/]")
+        for model, seed in work:
+            progress.update(task, description=f"[cyan]{model}[/] seed={seed}")
             result = run_benchmark(model, seed, DEFAULT_MAX_ITERATIONS)
-            row = result_to_row(result, run_id, seed)
+            row = result_to_row(result, seed)
             results.append(row)
+            append_result(row)
 
             if "error" in result:
                 console.print(f"  [red]Error:[/] {result['error']}")
@@ -280,13 +336,7 @@ def main() -> None:
     console.print(build_results_table(results))
     console.print()
 
-    csv_path = DATA_DIR / f"run_{run_id}.csv"
-    with csv_path.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=CSV_COLUMNS)
-        writer.writeheader()
-        writer.writerows(results)
-
-    console.print(f"[dim]Results saved to:[/] [bold]{csv_path}[/]")
+    console.print(f"[dim]Results saved to:[/] [bold]{DATA_DIR / 'results.csv'}[/]")
 
 
 if __name__ == "__main__":
