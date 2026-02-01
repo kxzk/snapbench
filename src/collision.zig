@@ -8,7 +8,7 @@ pub const CREATURE_HEIGHT: f32 = 2.0;
 /// Converts world-space XZ coordinates to grid cell indices.
 /// Returns null if the position is outside the world bounds.
 /// The grid origin (0,0) maps to world position (-WORLD_HALF, -WORLD_HALF).
-pub fn worldToGrid(wx: f32, wz: f32) ?struct { x: usize, z: usize } {
+pub inline fn worldToGrid(wx: f32, wz: f32) ?struct { x: usize, z: usize } {
     const gx = (wx + world.WORLD_HALF) / world.BLOCK_SCALE;
     const gz = (wz + world.WORLD_HALF) / world.BLOCK_SCALE;
 
@@ -67,22 +67,33 @@ pub fn resolveMove(w: *const world.World, current: Vec3, target: Vec3) Vec3 {
 
     var result = target;
 
+    // Cache grid lookup for target position - used twice below
+    const target_grid = worldToGrid(target.x, target.z);
+    
     var terrain_with_deco: f32 = 0;
-    if (worldToGrid(target.x, target.z)) |grid| {
+    if (target_grid) |grid| {
         const cell = w.cells[grid.z][grid.x];
         terrain_with_deco = world.cellTopY(cell.height) + catalog.decoHeight(cell.deco_type);
     }
     if (terrain_with_deco > current.y - DRONE_RADIUS) {
         result.x = current.x;
         result.z = current.z;
+        // XZ changed, need to recalculate floor for current position
+        var floor: f32 = 0;
+        if (worldToGrid(result.x, result.z)) |grid| {
+            const cell = w.cells[grid.z][grid.x];
+            floor = world.cellTopY(cell.height);
+        }
+        result.y = @max(result.y, floor + DRONE_RADIUS);
+    } else {
+        // XZ same as target, reuse target_grid for floor calculation
+        var floor: f32 = 0;
+        if (target_grid) |grid| {
+            const cell = w.cells[grid.z][grid.x];
+            floor = world.cellTopY(cell.height);
+        }
+        result.y = @max(result.y, floor + DRONE_RADIUS);
     }
-
-    var floor: f32 = 0;
-    if (worldToGrid(result.x, result.z)) |grid| {
-        const cell = w.cells[grid.z][grid.x];
-        floor = world.cellTopY(cell.height);
-    }
-    result.y = @max(result.y, floor + DRONE_RADIUS);
 
     return result;
 }

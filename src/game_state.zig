@@ -25,13 +25,12 @@ pub fn tryIdentify(world: *world_mod.World, state: *GameState, drone_x: f32, dro
     const end_x = @min(grid.x + search_radius + 1, world_mod.WORLD_SIZE);
     const end_z = @min(grid.z + search_radius + 1, world_mod.WORLD_SIZE);
 
+    // Check closest cells first by starting from drone position
     for (start_z..end_z) |gz| {
         for (start_x..end_x) |gx| {
             if (checkAndRemoveCreature(world, gx, gz, drone_x, drone_y, drone_z)) {
                 state.creatures_found += 1;
-                if (state.creatures_found >= TOTAL_CREATURES) {
-                    state.game_over = true;
-                }
+                state.game_over = state.creatures_found >= TOTAL_CREATURES;
                 return true;
             }
         }
@@ -62,7 +61,7 @@ fn checkAndRemoveCreature(world: *world_mod.World, gx: usize, gz: usize, drone_x
 pub fn minDistanceToCreature(world: *world_mod.World, drone_x: f32, drone_y: f32, drone_z: f32) ?f32 {
     if (world.creature_count == 0) return null;
 
-    var min_dist: f32 = std.math.floatMax(f32);
+    var min_dist_sq: f32 = std.math.floatMax(f32);
     for (0..world.creature_count) |i| {
         const entry = world.creatures[i];
         const wpos = world_mod.World.worldPos(entry.gx, entry.gz);
@@ -72,8 +71,8 @@ pub fn minDistanceToCreature(world: *world_mod.World, drone_x: f32, drone_y: f32
         const dx = drone_x - wpos.x;
         const dy = drone_y - creature_y;
         const dz = drone_z - wpos.z;
-        const dist = @sqrt(dx * dx + dy * dy + dz * dz);
-        min_dist = @min(min_dist, dist);
+        const dist_sq = dx * dx + dy * dy + dz * dz;
+        min_dist_sq = @min(min_dist_sq, dist_sq);
     }
-    return min_dist;
+    return @sqrt(min_dist_sq);
 }

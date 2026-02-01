@@ -53,6 +53,9 @@ pub const RenderBatch = struct {
 pub fn collectBatches(w: *const world.World, batch: *RenderBatch) void {
     batch.reset();
 
+    const block_y_offset = world.BLOCK_SCALE * 0.5;
+    const grass_type_id = @intFromEnum(catalog.BlockType.grass);
+    
     for (0..world.WORLD_SIZE) |z| {
         for (0..world.WORLD_SIZE) |x| {
             const cell = w.cells[z][x];
@@ -63,11 +66,16 @@ pub fn collectBatches(w: *const world.World, batch: *RenderBatch) void {
             const base_z = wpos.z;
             const cell_top_y = world.cellTopY(cell.height);
 
-            const block_y_offset = world.BLOCK_SCALE * 0.5;
-            batch.blocks.push(@intFromEnum(catalog.BlockType.grass), math.matrixScaleTranslate(base_x, block_y_offset, base_z, 1.0));
-            for (1..cell.height) |y| {
-                const block_y = @as(f32, @floatFromInt(y)) * world.BLOCK_SCALE + block_y_offset;
-                batch.blocks.push(@intFromEnum(cell.block_type), math.matrixScaleTranslate(base_x, block_y, base_z, 1.0));
+            // Always place grass block at base
+            batch.blocks.push(grass_type_id, math.matrixScaleTranslate(base_x, block_y_offset, base_z, 1.0));
+            
+            // Stack additional blocks if height > 1
+            if (cell.height > 1) {
+                const block_type_id = @intFromEnum(cell.block_type);
+                for (1..cell.height) |y| {
+                    const block_y = @as(f32, @floatFromInt(y)) * world.BLOCK_SCALE + block_y_offset;
+                    batch.blocks.push(block_type_id, math.matrixScaleTranslate(base_x, block_y, base_z, 1.0));
+                }
             }
 
             if (cell.deco_type != .none) {

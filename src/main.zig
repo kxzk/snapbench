@@ -172,6 +172,7 @@ pub fn main() void {
         const dy = target_pos.y - pos.y;
         const dz = target_pos.z - pos.z;
         const move_dist_sq = dx * dx + dy * dy + dz * dz;
+        // Only resolve collision if there's meaningful movement
         if (move_dist_sq > 0.0001) {
             const resolved = collision.resolveMove(
                 &terrain,
@@ -179,10 +180,9 @@ pub fn main() void {
                 .{ .x = target_pos.x, .y = target_pos.y, .z = target_pos.z },
             );
             target_pos = .{ .x = resolved.x, .y = resolved.y, .z = resolved.z };
+            target_pos = clampToPlayArea(target_pos);
+            pos = rl.Vector3Lerp(pos, target_pos, smoothing * dt);
         }
-
-        target_pos = clampToPlayArea(target_pos);
-        pos = rl.Vector3Lerp(pos, target_pos, smoothing * dt);
 
         model.transform = math.matrixTRS(pos, updated_yaw_rad, 5.0);
 
