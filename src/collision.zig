@@ -67,7 +67,7 @@ pub fn resolveMove(w: *const world.World, current: Vec3, target: Vec3) Vec3 {
 
     var result = target;
 
-    // Cache grid lookup for target position - used twice below
+    // Cache grid lookup for target position
     const target_grid = worldToGrid(target.x, target.z);
     
     var terrain_with_deco: f32 = 0;
@@ -75,25 +75,26 @@ pub fn resolveMove(w: *const world.World, current: Vec3, target: Vec3) Vec3 {
         const cell = w.cells[grid.z][grid.x];
         terrain_with_deco = world.cellTopY(cell.height) + catalog.decoHeight(cell.deco_type);
     }
+    
+    // Apply floor constraint based on final XZ position
+    var floor: f32 = 0;
     if (terrain_with_deco > current.y - DRONE_RADIUS) {
+        // Reject XZ movement - revert to current position
         result.x = current.x;
         result.z = current.z;
-        // XZ changed, need to recalculate floor for current position
-        var floor: f32 = 0;
+        // Recalculate floor for current position
         if (worldToGrid(result.x, result.z)) |grid| {
             const cell = w.cells[grid.z][grid.x];
             floor = world.cellTopY(cell.height);
         }
-        result.y = @max(result.y, floor + DRONE_RADIUS);
     } else {
-        // XZ same as target, reuse target_grid for floor calculation
-        var floor: f32 = 0;
+        // XZ movement accepted - reuse target_grid for floor calculation
         if (target_grid) |grid| {
             const cell = w.cells[grid.z][grid.x];
             floor = world.cellTopY(cell.height);
         }
-        result.y = @max(result.y, floor + DRONE_RADIUS);
     }
+    result.y = @max(result.y, floor + DRONE_RADIUS);
 
     return result;
 }
