@@ -16,7 +16,7 @@ pub fn hashSeed(world_number: u64) u64 {
 /// Returns the Y coordinate of the top surface of a terrain stack.
 /// Used for placing creatures and decorations on top of terrain blocks.
 /// Height 0 means no terrain (returns 0), height 1+ stacks blocks from y=0.
-pub fn cellTopY(height: u8) f32 {
+pub inline fn cellTopY(height: u8) f32 {
     if (height == 0) return 0;
     return @as(f32, @floatFromInt(height)) * BLOCK_SCALE;
 }
@@ -95,7 +95,7 @@ pub const World = struct {
 
     /// Converts grid cell indices to world-space XZ coordinates (cell center).
     /// Inverse of collision.worldToGrid. Centers the world around origin (0,0).
-    pub fn worldPos(x: usize, z: usize) struct { x: f32, z: f32 } {
+    pub inline fn worldPos(x: usize, z: usize) struct { x: f32, z: f32 } {
         return .{
             .x = @as(f32, @floatFromInt(x)) * BLOCK_SCALE - WORLD_HALF + BLOCK_SCALE * 0.5,
             .z = @as(f32, @floatFromInt(z)) * BLOCK_SCALE - WORLD_HALF + BLOCK_SCALE * 0.5,
