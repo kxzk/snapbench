@@ -1,25 +1,62 @@
-# SnapBench
+<h1 align="center">SnapBench</h1>
 
-A vision-language-model benchmark inspired by Pokémon Snap. A model pilots a
-drone around Mariner Island, finds three animals, and photographs them through
-a first-person camera.
+<p align="center">
+  <strong>A wildlife photography benchmark for vision-language models.</strong><br>
+  Inspired by Pokémon Snap. Piloted by AI.
+</p>
 
-![Aerial view of Mariner Island showing coastal woodland, meadows, and animals along the paths](images/island-photo-preview.png)
+<p align="center">
+  <img src="https://img.shields.io/badge/Zig-0.16.0-788A45?style=flat-square&logo=zig&logoColor=white" alt="Zig 0.16.0">
+  <img src="https://img.shields.io/badge/Rust-2024_edition-9C7054?style=flat-square&logo=rust&logoColor=white" alt="Rust 2024 edition">
+  <img src="https://img.shields.io/badge/Python-3.11%2B-527E8B?style=flat-square&logo=python&logoColor=white" alt="Python 3.11 or newer">
+  <img src="https://img.shields.io/badge/Models-OpenRouter-4D686A?style=flat-square" alt="Models via OpenRouter">
+</p>
 
-The simulation pairs each image with the drone's pose and pauses while the model
-decides what to do. Successful photographs require framing, visibility, and
-sufficient image size. Zig/raylib runs the world, a Rust controller calls models
+<p align="center">
+  <a href="#quick-start">Quick start</a> &nbsp;·&nbsp;
+  <a href="#run-benchmarks">Benchmarks</a> &nbsp;·&nbsp;
+  <a href="#results">Results</a> &nbsp;·&nbsp;
+  <a href="#development">Development</a>
+</p>
+
+<p align="center">
+  <img src="images/island-photo-preview.png" width="100%" alt="Aerial view of Mariner Island showing coastal woodland, meadows, and animals along the paths">
+  <br>
+  <sub>Mariner Island · Three animals to find · One drone camera</sub>
+</p>
+
+## The task
+
+A model pilots a drone around Mariner Island and photographs three animals.
+Each observation pairs a first-person image with the drone's pose; the world
+pauses while the model decides its next move.
+
+| Explore | Frame | Photograph |
+| --- | --- | --- |
+| Navigate woodland, meadows, and coastal paths. | Adjust position, altitude, and camera tilt. | Capture a visible animal at sufficient image size. |
+
+**Under the hood:** Zig/raylib runs the world, a Rust controller calls models
 through OpenRouter, and Python runs the benchmark suite.
 
 ## Results
 
-Results coming soon.
+> **Results coming soon.**
 
-## Run the simulation
+## Quick start
 
-Requires **Zig 0.16.0**, **Rust with the 2024 edition**, **Python 3.11+**, and **uv**.
-The renderer requires OpenGL 3.3 or newer; the tested platform is macOS on Apple
-Silicon. Run commands from the repository root so assets can be found.
+| Tool | Requirement |
+| --- | --- |
+| Zig | 0.16.0 |
+| Rust | 2024 edition support |
+| Python | 3.11+ with uv |
+| Graphics | OpenGL 3.3 or newer |
+
+Tested on **macOS with Apple Silicon**. Run commands from the repository root
+so assets can be found.
+
+### Fly it yourself
+
+No API key needed. Change `SEED` to explore another layout.
 
 ```sh
 git clone https://github.com/kxzk/snapbench.git
@@ -27,21 +64,24 @@ cd snapbench
 make sim SEED=42
 ```
 
-You can fly manually without an API key. Change `SEED` to explore another layout.
+<details>
+<summary><strong>Flight controls</strong></summary>
 
 | Control | Action |
 | --- | --- |
-| WASD / arrow keys | Fly relative to heading |
-| Space / left Shift | Ascend / descend |
-| Q / E | Turn |
-| I / K | Tilt the camera |
-| Tab | Switch chase / photography camera |
-| P | Photograph a framed animal |
-| R | Reset and return to manual control |
-| F3 | Toggle diagnostics |
-| Escape | Close |
+| <kbd>WASD</kbd> / arrow keys | Fly relative to heading |
+| <kbd>Space</kbd> / <kbd>Shift</kbd> (left) | Ascend / descend |
+| <kbd>Q</kbd> / <kbd>E</kbd> | Turn |
+| <kbd>I</kbd> / <kbd>K</kbd> | Tilt the camera |
+| <kbd>Tab</kbd> | Switch chase / photography camera |
+| <kbd>P</kbd> | Photograph a framed animal |
+| <kbd>R</kbd> | Reset and return to manual control |
+| <kbd>F3</kbd> | Toggle diagnostics |
+| <kbd>Esc</kbd> | Close |
 
-## Let a model fly
+</details>
+
+### Let a model fly
 
 Leave the simulation open. In a second terminal, from the repository root:
 
@@ -50,8 +90,8 @@ export OPENROUTER_API_KEY="your-openrouter-api-key"
 make drone
 ```
 
-The default controller uses Gemini 3 Flash Preview. To choose a model and limit
-the run to 50 decisions:
+The default controller uses **Gemini 3 Flash Preview**. To choose a model and
+limit the run to 50 decisions:
 
 ```sh
 cargo run --release --manifest-path llm_drone/Cargo.toml -- \
@@ -75,9 +115,12 @@ uv run bench/bench_runner.py --model google/gemini-3.8-flash
 uv run bench/bench_runner.py --model google/gemini-3.8-flash --force
 ```
 
-Models and token prices are configured in [bench/models.toml](bench/models.toml).
-New results go to `data/results-v2.csv`; controller replay records go to
-`.snapbench/replays/`. Historical data remains in `data/results.csv`.
+| File or directory | Purpose |
+| --- | --- |
+| [bench/models.toml](bench/models.toml) | Model lineup and prices per million tokens |
+| `data/results-v2.csv` | New benchmark results |
+| `.snapbench/replays/` | Controller replay records |
+| `data/results.csv` | Historical results from the original scenario |
 
 ## Development
 
@@ -90,10 +133,14 @@ make verify
 make replay REPLAY=.snapbench/verification.jsonl
 ```
 
-These checks require no model API calls. See the [simulation guide](docs/simulation-v2.md)
-for the agent API, photography rules, deterministic replay, and profiling.
-The [archived README](docs/archive/README-2026-09-12.md) preserves the previous
-write-up and historical results.
+These checks require no model API calls.
+
+- [Simulation guide](docs/simulation-v2.md) — Agent API, photography rules,
+  deterministic replay, and profiling.
+- [Archived README](docs/archive/README-2026-09-12.md) — Previous write-up and
+  historical results.
+
+---
 
 ## Credits
 

@@ -186,7 +186,7 @@ numbers are not an isolated renderer speedup comparison. The longer, paced fligh
 is the primary smoothness check. Occasional scheduling spikes remain, and results
 on other hardware require measurement.
 
-After the [code-quality review](code-quality-review.md), `make test` passes
+After the code-quality review, `make test` passes
 25 Zig tests, 8 Rust tests, and 7 Python tests. `make check`
 passes Zig/Rust formatting, Clippy with warnings denied, Ruff, and strict mypy.
 Native computer use verified the scene, completed three-species study, movement,
