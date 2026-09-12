@@ -32,7 +32,20 @@ flowchart LR
     style S fill:#6BA33A,stroke:#4A7C23,color:#fff
 ```
 
-### Latest Results
+### Island photography scenario
+
+The default `island-photo-v2` scenario is a wildlife photography task: fly over an
+island, frame three animals in the drone camera, and document each species. The
+world has connected habitats and paths, soft sunlight shadows, atmospheric fog,
+water, wind, animated animals, and a camera that avoids obstacles. `TAB` switches
+between chase and photography cameras; `P` records a framed subject.
+
+Simulation runs at a fixed 120 Hz. A versioned agent API pairs every observation
+with its pose and tick, pauses between actions, and supports deterministic replay.
+See [the API and scenario guide](docs/simulation-v2.md) for rules, controls, and
+examples. No paid API key is needed to play or run `make verify`.
+
+### Historical results (original proximity scenario)
 
 | Model | Creatures Detected |
 |-------|--------------------|
@@ -40,7 +53,12 @@ flowchart LR
 
 ### Overview
 
-The simulation generates procedural terrain and spawns creatures (cat, dog, pig, sheep) for the drone to discover. It handles drone physics and collision detection, accepting 8 movement commands plus `identify` and `screenshot`. The Rust controller captures frames from the simulation, constructs prompts enriched with position and state data, then parses VLM responses into executable command sequences. The objective: locate and successfully identify 3 creatures, where `identify` succeeds when the drone is within 5 units of a target.
+The Zig simulation handles terrain, movement, collision, photography, and rendering.
+The Rust controller sends bounded actions over loopback UDP, receives camera images
+with their exact state, and asks a VLM for the next commands. Photography requires
+framing, visibility, and sufficient image size. `--scenario legacy` retains the
+original terrain generator and proximity rules for comparison; the narrative and
+results below describe that older task.
 
 <br>
 
@@ -120,7 +138,7 @@ This is half-serious research, half "let's see what happens."
 
 | Tool | Version | Install |
 |------|---------|---------|
-| Zig | ≥0.15.2 | [ziglang.org/download](https://ziglang.org/download/) |
+| Zig | 0.16.0 | [ziglang.org/download](https://ziglang.org/download/) |
 | Rust | stable (2024 edition) | [rust-lang.org/tools/install](https://rust-lang.org/tools/install/) |
 | Python | ≥3.11 | [python.org](https://www.python.org/) |
 | uv | latest | [docs.astral.sh/uv](https://docs.astral.sh/uv/getting-started/installation/) |
@@ -160,7 +178,49 @@ uv run bench/bench_runner.py
 make bench
 ```
 
-Results get saved to `data/run_<id>.csv`.
+New results are saved to `data/results-v2.csv`, including the scenario, simulation
+ticks, and replay path. Historical `data/results.csv` remains separate.
+Use `uv run bench/bench_runner.py --force` to rerun existing model/seed pairs.
+Each result replaces only its matching pair through an atomic file replacement;
+an interrupted rerun keeps results for pairs that have not finished. Controller
+checkpoints are also replaced atomically and recovered after timeouts or errors.
+
+### Development and performance
+
+The simulation uses Zig 0.16.0 and pinned raylib 6.0. Run commands from the
+repository root so the simulation can find `assets/`. The verified platform is
+macOS on Apple Silicon; the renderer requires OpenGL 3.3 or newer.
+
+```bash
+make test                 # Zig, Rust, and Python regression tests; no API calls
+make check                # formatting, Clippy, Ruff, and strict Python types
+make profile SEED=42      # 1200 uncapped frames, after 120 warmup frames
+
+# Follow display refresh with vsync (default)
+zig build run -Doptimize=ReleaseFast -- 42
+
+# Explicit software cap, or 0 for uncapped rendering
+zig build run -Doptimize=ReleaseFast -- 42 --fps 120
+```
+
+`--profile N` prints average FPS, frame-time percentiles, maximum frame time,
+CPU work time, and the number of frames over 16.67 ms, then exits. Keyboard input
+is disabled during profiling to make repeated measurements comparable; UDP
+commands remain available for scripted flight tests. Frame times include
+presentation and pacing. CPU work time excludes presentation and is not a GPU
+timing measurement.
+
+The renderer keeps compact instance data on the GPU, skips enclosed blocks, and
+culls 8×8-cell chunks against the camera frustum. The simulation uses fixed steps,
+interpolated rendering, exponential movement smoothing, and swept collision.
+Observations use a separate 1280×720 camera without HUD hints. A GPU pixel buffer
+and fence defer readback until ready; a worker flips and encodes the PNG.
+
+UDP listens on `127.0.0.1:9999`. The Rust controller uses the JSON v2 protocol.
+Plain text commands remain for manual diagnostics, and exact nearest-creature
+distance is exposed only by the legacy scenario. Close a manually running
+simulation before starting the benchmark suite. See [the original modernization
+audit](docs/modernization-audit.md) and [the v2 guide](docs/simulation-v2.md).
 
 ## Where this could go
 
@@ -178,6 +238,8 @@ Results get saved to `data/run_<id>.csv`.
 
 - Drone by NateGazzard [CC-BY](https://creativecommons.org/licenses/by/3.0/) via [Poly Pizza](https://poly.pizza/m/DNbUoMtG3H)
 - Cube World Kit by Quaternius via [Poly Pizza](https://poly.pizza/bundle/Cube-World-Kit-DwDr8493Fw)
+- Manrope by the Manrope Project Authors, [SIL Open Font License](assets/fonts/OFL.txt).
+  The bundled font is a static weight-550 instance of the [Google Fonts source](https://github.com/google/fonts/tree/main/ofl/manrope).
 
 *Donated to [Poly Pizza](https://poly.pizza) to support the platform.*
 

@@ -1,4 +1,5 @@
 .zig-cache/
+zig-pkg/
 zig-out/
 .claude
 drone_control
@@ -9,3 +10,8 @@ llm_drone/target/
 screenshot.png
 
 __pycache__/
+.ruff_cache/
+.mypy_cache/
+bench_checkpoint.json
+bench_checkpoint.json.tmp
+.snapbench/

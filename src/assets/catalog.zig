@@ -33,6 +33,11 @@ pub const CreatureType = enum(u8) {
     wolf,
 };
 
+// All seven authored GLBs order clips Death, Headbutt, Idle, ... . raylib's
+// 32-byte name field truncates their common prefix before the clip name.
+// bench/test_assets.py verifies this catalogue contract against the source GLBs.
+pub const creature_idle_clip = 2;
+
 /// Returns the asset file path for a block type, or null for air (no model).
 /// Paths are null-terminated for direct use with C APIs (raylib).
 pub fn blockPath(t: BlockType) ?[:0]const u8 {
@@ -78,19 +83,29 @@ pub fn creaturePath(t: CreatureType) ?[:0]const u8 {
     };
 }
 
-/// Returns the collision height of a decoration for terrain height calculations.
-/// Trees are tall (6.0), flowers are short (0.5). Used to extend the effective
-/// terrain surface upward so the drone can't fly through decoration geometry.
-pub fn decoHeight(t: DecoType) f32 {
+pub const Shape = struct { radius: f32, height: f32 };
+
+/// Unscaled asset dimensions. Tree collision covers the trunk, allowing flight
+/// through the soft canopy; small foliage does not act as an invisible wall.
+pub fn decorationShape(t: DecoType) Shape {
     return switch (t) {
-        .none => 0.0,
-        .tree => 6.0,
-        .bamboo => 5.0,
-        .flowers => 0.5,
-        .plant => 1.5,
-        .bush => 2.0,
-        .crystal_small => 1.0,
-        .crystal_big => 4.0,
+        .none, .flowers, .plant => .{ .radius = 0, .height = 0 },
+        .tree => .{ .radius = 0.38, .height = 7.7 },
+        .bamboo => .{ .radius = 0.38, .height = 1.7 },
+        .bush => .{ .radius = 1.4, .height = 1.9 },
+        .crystal_small => .{ .radius = 0.4, .height = 0.9 },
+        .crystal_big => .{ .radius = 0.8, .height = 1.65 },
+    };
+}
+
+pub fn creatureShape(t: CreatureType) Shape {
+    return switch (t) {
+        .none => .{ .radius = 0, .height = 0 },
+        .cat => .{ .radius = 0.75, .height = 1.6 },
+        .dog, .wolf => .{ .radius = 1, .height = 2 },
+        .horse => .{ .radius = 1.4, .height = 3 },
+        .pig, .sheep => .{ .radius = 1, .height = 1.8 },
+        .raccoon => .{ .radius = 0.85, .height = 1.6 },
     };
 }
 
